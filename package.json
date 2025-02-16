@@ -1,0 +1,14 @@
+{
+  "name": "peerjs-chat-app",
+  "version": "1.0.0",
+  "description": "A simple chat application using PeerJS for real-time communication between clients.",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "live-server src"
+  },
+  "dependencies": {
+    "peer": "^1.3.1"
+  },
+  "author": "",
+  "license": "ISC"
+}
