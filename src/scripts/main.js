@@ -75,6 +75,8 @@ function unpackageData(data) {
 }
 
 function handleData(data) {
+    const defaultApp = 'theGame';
+
     //'command#arg1:value1#arg2:value2#...'
     console.log(data);
     const { command, arguments } = unpackageData(data);
@@ -87,13 +89,13 @@ function handleData(data) {
             names.push(arguments.name);
             names.push(nameInput.value);
             conn.send("INIT_ANS#name:" + nameInput.value);
-            switch2('chat');
+            switch2(defaultApp);
             break;
         case 'INIT_ANS':
             isMainActor = true;
             names.push(nameInput.value);
             names.push(arguments);
-            switch2('chat');
+            switch2(defaultApp);
             break;
     }
 }
