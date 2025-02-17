@@ -7,6 +7,11 @@ let names = []; // Array of both names
 let myName = null; // My name
 let isMainActor = null;
 
+let baseUrl = 'http://localhost:8000/src/';
+if(window.location.href.includes('github')) {
+    baseUrl = 'https://rizzi2001.github.io/src/';
+}
+
 // Function to set up the peer connection
 function setupPeerConnection() {
     peer.on('open', (id) => {
@@ -25,7 +30,7 @@ function setupPeerConnection() {
 
 // filepath: /c:/Users/bruel/Documents/Scripts/peerJS/src/scripts/main.js
 function switch2(pageName) {
-    fetch('http://localhost:8000/src/' + pageName + '.html')
+    fetch(baseUrl + pageName + '.html')
         .then(response => response.text())
         .then(html => {
             CONTENT.innerHTML = html;
@@ -42,13 +47,13 @@ function switch2(pageName) {
             // Add new page-specific CSS
             const css = document.createElement('link');
             css.rel = 'stylesheet';
-            css.href = 'http://localhost:8000/src/styles/' + pageName + '.css';
+            css.href = baseUrl + 'styles/' + pageName + '.css';
             css.setAttribute('data-page', pageName);
             document.head.appendChild(css);
 
             // Add new page-specific JS
             const js = document.createElement('script');
-            js.src = 'http://localhost:8000/src/scripts/' + pageName + '.js';
+            js.src = baseUrl + 'scripts/' + pageName + '.js';
             js.setAttribute('data-page', pageName);
             document.body.appendChild(js);
         });
