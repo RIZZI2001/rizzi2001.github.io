@@ -34,11 +34,15 @@ function connect2peer() {
         alert('Please enter a peer ID');
         return;
     }
+    if(initSent) {
+        return;
+    }
     conn = peer.connect(peerIdInput.value);
     conn.on('open', () => {
         console.log('Connected');
 
         conn.send(packageData('INIT', { name: myName }));
+        initSent = true;
 
         conn.on('data', (data) => {
             handleData(data);

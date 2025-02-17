@@ -6,6 +6,7 @@ let conn = null; // Connection variable
 let names = []; // Array of both names
 let myName = null; // My name
 let isMainActor = null;
+let initSent = false;
 
 let baseUrl = 'http://localhost:8000/src/';
 if(window.location.href.includes('github')) {
@@ -93,7 +94,7 @@ function handleData(data) {
             isMainActor = false;
             names.push(arguments.name);
             names.push(nameInput.value);
-            conn.send("INIT_ANS#name:" + nameInput.value);
+            conn.send(packageData('INIT_ANS', { name: nameInput.value }));
             switch2(defaultApp);
             break;
         case 'INIT_ANS':
