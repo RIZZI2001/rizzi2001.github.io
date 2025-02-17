@@ -1,10 +1,3 @@
-body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
-    margin: 0;
-    padding: 20px;
-}
-
 #chat-container {
     max-width: 600px;
     margin: auto;
@@ -18,13 +11,9 @@ body {
     height: 300px;
     overflow-y: scroll;
     border: 1px solid #ddd;
-    margin-bottom: 10px;
-    padding: 10px;
     border-radius: 5px;
-}
-
-.message {
-    margin: 5px 0;
+    padding: 10px;
+    margin-bottom: 10px;
 }
 
 #message-input {
@@ -32,17 +21,5 @@ body {
     padding: 10px;
     border: 1px solid #ddd;
     border-radius: 5px;
-}
-
-#send-button {
-    padding: 10px 15px;
-    background-color: #28a745;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-#send-button:hover {
-    background-color: #218838;
+    margin-bottom: 10px;
 }
