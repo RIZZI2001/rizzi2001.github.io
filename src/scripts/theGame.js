@@ -1,12 +1,12 @@
-/* myRole = 'main';
-otherRole = 'second'; */
+myRole = 'main';
+otherRole = 'second';
 
 const currentPlayerIndicator = document.getElementById('current-player-indicator');
 const remainingCardsIndicator = document.getElementById('remaining-cards-indicator');
 const winnerIndicator = document.getElementById('winner-indicator');
 const endTurnButton = document.getElementById('end-turn-button');
 
-let scene, camera, renderer; 
+let scene, camera, renderer;
 
 let handGroup, myDownStack, myUpStack, otherDownStack, otherUpStack;
 let raycaster, mouse;
@@ -22,6 +22,8 @@ const secondColorDark = 0x3a1a1a;
 
 const myColor = myRole == 'main' ? mainColor : secondColor;
 const otherColor = myRole == 'main' ? secondColor : mainColor;
+
+const windowSubtract = 0.0;
 
 function communication(command, args) {
     console.log('Communication', command, args);
@@ -119,7 +121,7 @@ function initScene() {
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.z = 10;
     renderer = new THREE.WebGLRenderer();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(window.innerWidth - windowSubtract, window.innerHeight - windowSubtract);
     document.body.appendChild(renderer.domElement);
 
     myDownStack = initStack(2, 0, 0, 'myDownStack');
@@ -144,7 +146,7 @@ function initScene() {
 function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(window.innerWidth - windowSubtract, window.innerHeight - windowSubtract);
 }
 
 function onMouseDown(event) {
