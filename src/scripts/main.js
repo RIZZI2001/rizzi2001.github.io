@@ -3,10 +3,12 @@ const CONTENT = document.getElementById('CONTENT');
 const peer = new Peer(); // Initialize PeerJS
 
 let conn = null; // Connection variable
-let names = []; // Array of both names
 let myName = null; // My name
+let otherName = null; // Other player's name
 let isMainActor = null;
 let initSent = false;
+
+let GAME_STATE = null;
 
 let baseUrl = 'http://localhost:8000/src/';
 if(window.location.href.includes('github')) {
@@ -61,51 +63,45 @@ function switch2(pageName) {
 }
 
 function packageData(command, args) {
-    let data = command;
-    for (const key in args) {
-        data += '#' + key + ':' + args[key];
-    }
-    return data;
+    return JSON.stringify({ command, args });
 }
 
 function unpackageData(data) {
-    const parts = data.split('#');
-    const command = parts[0];
-    const tmp = parts.slice(1);
-    const arguments = tmp.reduce((acc, arg) => {
-        const [key, value] = arg.split(':');
-        acc[key] = value;
-        return acc;
-    }, {});
-    return { command, arguments };
+    return JSON.parse(data);
 }
 
 function handleData(data) {
     const defaultApp = 'theGame';
 
-    //'command#arg1:value1#arg2:value2#...'
     console.log(data);
-    const { command, arguments } = unpackageData(data);
+    const { command, args } = unpackageData(data);
+    console.log(args);
     switch(command) {
         case 'MESSAGE':
-            displayMessage(arguments);
+            displayMessage(args);
             break;
         case 'INIT':
             isMainActor = false;
-            names.push(arguments.name);
-            names.push(nameInput.value);
+            otherName = args.name;
             conn.send(packageData('INIT_ANS', { name: nameInput.value }));
             switch2(defaultApp);
             break;
         case 'INIT_ANS':
             isMainActor = true;
-            names.push(nameInput.value);
-            names.push(arguments);
+            otherName = args.name;
             switch2(defaultApp);
+            break;
+        case 'INIT_GAME':
+            GAME_STATE = args;
+            initGameUI();
+            break;
+        case 'DRAW_CARD':
+            drawCard(args.player);
             break;
     }
 }
 
 // Initialize the peer connection
 setupPeerConnection();
-switch2('connection');
+//switch2('connection');
+switch2('theGame');
