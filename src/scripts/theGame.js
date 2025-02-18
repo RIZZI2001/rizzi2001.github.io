@@ -1,4 +1,9 @@
-const currentPlayerIndicator = document.getElementById('current-player');
+/* myRole = 'main';
+otherRole = 'second'; */
+
+const currentPlayerIndicator = document.getElementById('current-player-indicator');
+const remainingCardsIndicator = document.getElementById('remaining-cards-indicator');
+const winnerIndicator = document.getElementById('winner-indicator');
 const endTurnButton = document.getElementById('end-turn-button');
 
 let scene, camera, renderer; 
@@ -10,7 +15,10 @@ let offset = new THREE.Vector3();
 let intersectedObject = null;
 
 const mainColor = 0x83d684;
-const secondColor = 0xe09c43;
+const secondColor = 0xde6666;
+
+const mainColorDark = 0x1a3a1a;
+const secondColorDark = 0x3a1a1a;
 
 const myColor = myRole == 'main' ? mainColor : secondColor;
 const otherColor = myRole == 'main' ? secondColor : mainColor;
@@ -20,13 +28,17 @@ function communication(command, args) {
     switch(command) {
         case 'INIT_GAME':
             GAME_STATE.currentPlayer = args.currentPlayer;
+            updateTurnIndicator();
             break;
         case 'PLACE_CARD':
             placeCard(args.cardValue, args.stackType, args.stackOwnerRole, args.cardPlayerRole);
             break;
         case 'END_TURN':
             GAME_STATE.currentPlayer = args.currentPlayer;
-            currentPlayerIndicator.innerText = 'Your Turn';
+            updateTurnIndicator();
+            break;
+        case 'END_GAME':
+            showWinner(args.winner);
             break;
     }
 }
@@ -67,15 +79,15 @@ function createCard(number, color) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     if(number == 60) {
-        ctx.font = '80px Arial';
-        ctx.fillText('60', canvas.width / 2, canvas.height / 2 - 50);
+        ctx.font = '60px Arial';
+        ctx.fillText('60', canvas.width / 2, canvas.height / 2 - 140);
         ctx.font = '40px Arial';
-        ctx.fillText('DOWN', canvas.width / 2, canvas.height / 2 + 50);
+        ctx.fillText('DOWN', canvas.width / 2, canvas.height / 2 - 100);
     } else if(number == 1) {
-        ctx.font = '80px Arial';
-        ctx.fillText('1', canvas.width / 2, canvas.height / 2 - 50);
+        ctx.font = '60px Arial';
+        ctx.fillText('1', canvas.width / 2, canvas.height / 2 - 140);
         ctx.font = '40px Arial';
-        ctx.fillText('UP', canvas.width / 2, canvas.height / 2 + 50);
+        ctx.fillText('UP', canvas.width / 2, canvas.height / 2 - 100);
     } else {
         ctx.font = '140px Arial';
         ctx.fillText(String(number), canvas.width / 2, canvas.height / 2);
@@ -109,13 +121,6 @@ function initScene() {
     renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
-
-    scene.background = new THREE.Color(0x222222);
-
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(0, 0, 1);
-    scene.add(light);
-
 
     myDownStack = initStack(2, 0, 0, 'myDownStack');
     myUpStack = initStack(-2, 0, 0, 'myUpStack');
@@ -187,13 +192,13 @@ function onMouseUp(event) {
     if (selectedCard) {
         // Check for intersection with stacks
         raycaster.setFromCamera(mouse, camera);
-        const intersects = raycaster.intersectObjects([myDownStack.children[0], myUpStack.children[0], otherDownStack.children[0], otherUpStack.children[0]]);
+        const intersects = raycaster.intersectObjects([myDownStack.children[myDownStack.children.length-1], myUpStack.children[myUpStack.children.length-1], otherDownStack.children[otherDownStack.children.length-1], otherUpStack.children[otherUpStack.children.length-1]]);
 
         if (intersects.length > 0) {
             const stack = intersects[0].object.parent;
-            if (stack == myDownStack && selectedCard.name < GAME_STATE[myRole].downStack.value) {
+            if (stack == myDownStack && selectedCard.name < GAME_STATE[myRole].downStack.value || selectedCard.name == GAME_STATE[myRole].downStack.value + 10) {
                 placeCard(selectedCard.name, 'downStack', myRole, myRole);
-            } else if (stack == myUpStack && selectedCard.name > GAME_STATE[myRole].upStack.value) {
+            } else if (stack == myUpStack && selectedCard.name > GAME_STATE[myRole].upStack.value || selectedCard.name == GAME_STATE[myRole].upStack.value - 10) {
                 placeCard(selectedCard.name, 'upStack', myRole, myRole);
             } else if (stack == otherDownStack && selectedCard.name > GAME_STATE[otherRole].downStack.value && !GAME_STATE.unlockedRefill ) {
                 placeCard(selectedCard.name, 'downStack', otherRole, myRole);
@@ -202,29 +207,25 @@ function onMouseUp(event) {
                 placeCard(selectedCard.name, 'upStack', otherRole, myRole);
                 GAME_STATE.unlockedRefill = true;
             } else {
-                resetCardPosition();
+                refreshHandPositions();
             }
         } else {
-            resetCardPosition();
+            refreshHandPositions();
         }
         selectedCard = null;
     }       
 }
 
-function resetCardPosition() {
-    const handIndex = GAME_STATE.hand.indexOf(selectedCard.name);
-    if (handIndex !== -1) {
-        selectedCard.position.set(-4 + handIndex * 2, 0, 0);
-    }
-}
-
 function setStackCard(stack, value, color) {
-    if(stack.children.length > 0) {
-        stack.remove(stack.children[0]);
+    if(stack.children.length > 1) {
+        stack.remove(stack.children[stack.children.length - 1]);
     }
     const newCard = createCard(value, color);
     newCard.name = value;
     stack.add(newCard);
+    if(value == 60 || value == 1) {
+        newCard.position.y = 1;
+    }
 }
 
 function placeCard(cardValue, stackType, stackOwnerRole, cardPlayerRole) {
@@ -251,6 +252,12 @@ function placeCard(cardValue, stackType, stackOwnerRole, cardPlayerRole) {
     if(cardPlayerRole == myRole) {
         conn.send(packageData('PLACE_CARD', { cardValue, stackType, stackOwnerRole, cardPlayerRole }));
     }
+
+    if(GAME_STATE.hand.length == 0 && GAME_STATE.cardStack.length == 0) {
+        conn.send(packageData('END_GAME', { winner: myName }));
+        showWinner(myName);
+    }
+
 }
 
 function refreshHandPositions() {
@@ -270,6 +277,7 @@ function drawCard() {
     handGroup.add(card);
 
     refreshHandPositions();
+    remainingCardsIndicator.innerText = 'Remaining Cards: ' + GAME_STATE.cardStack.length;
 }
 
 function initLogic() {
@@ -310,13 +318,35 @@ function initGameUI() {
 
     render();
 
-    currentPlayerIndicator.innerText = GAME_STATE.currentPlayer == myRole ? 'Your Turn' : otherName + "'s Turn";
-    endTurnButton.style.display = GAME_STATE.currentPlayer == myRole ? 'block' : 'none';
+    updateTurnIndicator();
+    endTurnButton.style.display = 'none';
 }
 
 function render() {
     requestAnimationFrame(render);
     renderer.render(scene, camera);
+}
+
+function showWinner(winnerName) {
+    winnerIndicator.innerText = winnerName + ' Wins!';
+    winnerIndicator.style.display = 'block';
+}
+
+function hexToCssColor(hex) {
+    return `#${new THREE.Color(hex).getHexString()}`;
+}
+
+function updateTurnIndicator() {
+    currentPlayerIndicator.innerText = GAME_STATE.currentPlayer == myRole ? 'Your Turn' : otherName + "'s Turn";
+
+    if (GAME_STATE.currentPlayer === 'main') {
+        scene.background = new THREE.Color(mainColorDark);
+        currentPlayerIndicator.style.color = hexToCssColor(mainColor);
+    } else {
+        scene.background = new THREE.Color(secondColorDark);
+        currentPlayerIndicator.style.color = hexToCssColor(secondColor);
+    }
+    console.log(currentPlayerIndicator.style.color);
 }
 
 function endTurn() {
@@ -325,7 +355,7 @@ function endTurn() {
     }
 
     GAME_STATE.currentPlayer = GAME_STATE.currentPlayer == 'main' ? 'second' : 'main';
-    currentPlayerIndicator.innerText = otherName + "'s Turn";
+    updateTurnIndicator();
     endTurnButton.style.display = 'none';
 
     if(GAME_STATE.unlockedRefill) {

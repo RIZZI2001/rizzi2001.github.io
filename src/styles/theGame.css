@@ -3,13 +3,19 @@ canvas { display: block; }
 
 #ui-container {
     position: absolute;
+    width: 100%;
+    height: 100%;
     top: 10px;
     left: 10px;
     z-index: 10;
     color: white;
     font-family: Arial, sans-serif;
 }
-#turn-indicator {
+#current-player-indicator {
+    margin-bottom: 10px;
+    color: #2835a7;
+}
+#remaining-cards-indicator {
     margin-bottom: 10px;
 }
 #end-turn-button {
@@ -22,4 +28,20 @@ canvas { display: block; }
 }
 #end-turn-button:hover {
     background-color: #218838;
+}
+#winner-indicator {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: xx-large;
+    padding: 10px 20px;
+    background-color: #1a1a1a;
+    color: white;
+    border: none;
+    border-radius: 5px;
+}
+.player-turn {
+    border: 5px solid green;
 }
