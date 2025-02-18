@@ -101,5 +101,5 @@ function handleData(data) {
 
 // Initialize the peer connection
 setupPeerConnection();
-//switch2('connection');
-switch2('theGame');
+switch2('connection');
+//switch2('theGame');
