@@ -1,11 +1,38 @@
+const currentPlayerIndicator = document.getElementById('current-player');
+const endTurnButton = document.getElementById('end-turn-button');
+
 let scene, camera, renderer; 
+
 let handGroup, myDownStack, myUpStack, otherDownStack, otherUpStack;
 let raycaster, mouse;
 let selectedCard = null;
 let offset = new THREE.Vector3();
 let intersectedObject = null;
 
-function createCard(number) {
+const mainColor = 0x83d684;
+const secondColor = 0xe09c43;
+
+const myColor = myRole == 'main' ? mainColor : secondColor;
+const otherColor = myRole == 'main' ? secondColor : mainColor;
+
+function communication(command, args) {
+    console.log('Communication', command, args);
+    switch(command) {
+        case 'INIT_GAME':
+            GAME_STATE = args;
+            initGameUI();
+            break;
+        case 'PLACE_CARD':
+            placeCard(args.cardValue, args.stackType, args.stackOwnerRole, args.cardPlayerRole);
+            break;
+        case 'END_TURN':
+            GAME_STATE.currentPlayer = args.currentPlayer;
+            currentPlayerIndicator.innerText = 'Your Turn';
+            break;
+    }
+}
+
+function createCard(number, color) {
     // Create Card Geometry
     const cardWidth = 2, cardHeight = 3;
     const cardGeometry = new THREE.PlaneGeometry(cardWidth, cardHeight);
@@ -32,7 +59,8 @@ function createCard(number) {
         ctx.fill();
     }
 
-    ctx.fillStyle = 'white';
+    const c = new THREE.Color().setHex( color ).getStyle();
+    ctx.fillStyle = c
     drawRoundedRect(ctx, 10, 10, canvas.width - 20, canvas.height - 20, 30);
 
     //Draw Number
@@ -83,12 +111,20 @@ function initScene() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
+    scene.background = new THREE.Color(0x222222);
+
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(0, 0, 1);
+    scene.add(light);
+
+
     myDownStack = initStack(2, 0, 0, 'myDownStack');
     myUpStack = initStack(-2, 0, 0, 'myUpStack');
     otherDownStack = initStack(2, 5, Math.PI, 'otherDownStack');
     otherUpStack = initStack(-2, 5, Math.PI, 'otherUpStack');
 
     handGroup = new THREE.Group();
+    handGroup.name = 'handGroup';
     handGroup.position.y = -5;
     scene.add(handGroup);
 
@@ -109,6 +145,10 @@ function onWindowResize() {
 
 function onMouseDown(event) {
     event.preventDefault();
+
+    if(GAME_STATE.currentPlayer !== myRole) {
+        return;
+    }
 
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -142,58 +182,7 @@ function onMouseMove(event) {
     }
 }
 
-function updateStack(stack, value) {
-    if(stack.children[0].name != value) {
-        stack.remove(stack.children[0]);
-        const newCard = createCard(value);
-        newCard.name = value;
-        stack.add(newCard);
-    }
-}
-
-function updateUI() {
-    for(let i = 0; i < 5; i++) {
-        if(i >= GAME_STATE[myName].hand.length) {
-            if (handGroup.children[i]) {
-                handGroup.remove(handGroup.children[i]);
-            }
-        }
-        if (handGroup.children[i] && handGroup.children[i].name != GAME_STATE[myName].hand[i]) {
-            handGroup.remove(handGroup.children[i]);
-            const newCard = createCard(GAME_STATE[myName].hand[i]);
-            newCard.position.set(-4 + i * 2, -5, 0);
-            handGroup.add(newCard);
-        } else if (!handGroup.children[i]) {
-            const newCard = createCard(GAME_STATE[myName].hand[i]);
-            newCard.position.set(-4 + i * 2, -5, 0);
-            handGroup.add(newCard);
-        }
-    }
-
-    // Update Up Stack
-    updateStack(myUpStack, GAME_STATE[myName].upStack);
-    updateStack(myDownStack, GAME_STATE[myName].downStack);
-    updateStack(otherUpStack, GAME_STATE[otherName].upStack);
-    updateStack(otherDownStack, GAME_STATE[otherName].downStack);
-}
-
-function droppedCard(player, card, stackType, stackOwner, send = false) {
-    console.log('dropped card', player, card, stackType, stackOwner);
-    GAME_STATE[player].hand.splice(GAME_STATE[player].hand.indexOf(card), 1);
-
-    if(stackType == 'up') {
-        GAME_STATE[stackOwner].upStack = card;
-    } else if(stackType == 'down') {
-        GAME_STATE[stackOwner].downStack = card;
-    }
-
-    selectedCard = null;
-
-    updateUI();
-}
-
 function onMouseUp(event) {
-    console.log('mouse up');
     event.preventDefault();
 
     if (selectedCard) {
@@ -202,16 +191,17 @@ function onMouseUp(event) {
         const intersects = raycaster.intersectObjects([myDownStack.children[0], myUpStack.children[0], otherDownStack.children[0], otherUpStack.children[0]]);
 
         if (intersects.length > 0) {
-            console.log('intersection!');
             const stack = intersects[0].object.parent;
-            if (stack == myDownStack && selectedCard.name < GAME_STATE[myName].downStack) {
-                droppedCard(myName, selectedCard.name, 'down', myName, true);
-            } else if (stack == myUpStack && selectedCard.name > GAME_STATE[myName].upStack) {
-                droppedCard(myName, selectedCard.name, 'up', myName, true);
-            } else if (stack == otherDownStack && selectedCard.name > GAME_STATE[otherName].downStack) {
-                droppedCard(myName, selectedCard.name, 'down', otherName, true);
-            } else if (stack == otherUpStack && selectedCard.name < GAME_STATE[otherName].upStack) {
-                droppedCard(myName, selectedCard.name, 'up', otherName, true);
+            if (stack == myDownStack && selectedCard.name < GAME_STATE[myRole].downStack.value) {
+                placeCard(selectedCard.name, 'downStack', myRole, myRole);
+            } else if (stack == myUpStack && selectedCard.name > GAME_STATE[myRole].upStack.value) {
+                placeCard(selectedCard.name, 'upStack', myRole, myRole);
+            } else if (stack == otherDownStack && selectedCard.name > GAME_STATE[otherRole].downStack.value && !GAME_STATE.unlockedRefill ) {
+                placeCard(selectedCard.name, 'downStack', otherRole, myRole);
+                GAME_STATE.unlockedRefill = true;
+            } else if (stack == otherUpStack && selectedCard.name < GAME_STATE[otherRole].upStack.value && !GAME_STATE.unlockedRefill) {
+                placeCard(selectedCard.name, 'upStack', otherRole, myRole);
+                GAME_STATE.unlockedRefill = true;
             } else {
                 resetCardPosition();
             }
@@ -223,76 +213,102 @@ function onMouseUp(event) {
 }
 
 function resetCardPosition() {
-    const handIndex = GAME_STATE[myName].hand.indexOf(selectedCard.name);
+    const handIndex = GAME_STATE.hand.indexOf(selectedCard.name);
     if (handIndex !== -1) {
         selectedCard.position.set(-4 + handIndex * 2, 0, 0);
     }
 }
 
-function drawCard(player, send = true) {
-    const card = GAME_STATE[player].cardStack.pop();
-    GAME_STATE[player].hand.push(card);
-    if(send) {
-        conn.send(packageData('DRAW_CARD', { player }));
+function setStackCard(stack, value, color) {
+    if(stack.children.length > 0) {
+        stack.remove(stack.children[0]);
+    }
+    const newCard = createCard(value, color);
+    newCard.name = value;
+    stack.add(newCard);
+}
+
+function placeCard(cardValue, stackType, stackOwnerRole, cardPlayerRole) {
+    if(cardPlayerRole == myRole) {
+        GAME_STATE.hand.splice(GAME_STATE.hand.indexOf(cardValue), 1);
+        handGroup.remove(selectedCard);
+        refreshHandPositions();
+        GAME_STATE.cardsPlayed++;
+        if(GAME_STATE.cardsPlayed >= 2) {
+            endTurnButton.style.display = 'block';
+        }
+    }
+
+    const color = cardPlayerRole == 'main' ? mainColor : secondColor;
+
+    GAME_STATE[stackOwnerRole][stackType].value = cardValue;
+    GAME_STATE[stackOwnerRole][stackType].color = color;
+
+    const stack = stackOwnerRole == myRole ? (stackType == 'upStack' ? myUpStack : myDownStack) : (stackType == 'upStack' ? otherUpStack : otherDownStack);
+    setStackCard(stack, cardValue, color);
+    
+    selectedCard = null;
+
+    if(cardPlayerRole == myRole) {
+        conn.send(packageData('PLACE_CARD', { cardValue, stackType, stackOwnerRole, cardPlayerRole }));
     }
 }
 
-function initLogic() {
-    //REMOVE THIS
-    myName = 'Player1';
-    otherName = 'Player2';
+function refreshHandPositions() {
+    const cardCount = GAME_STATE.hand.length;
+    const offset = -cardCount + 1;
+    for(let i = 0; i < cardCount; i++) {
+        const card = handGroup.children.find(c => c.name == GAME_STATE.hand[i]);
+        card.position.set(offset + i * 2, 0, 0);
+    }
+}
 
+function drawCard() {
+    const cardValue = GAME_STATE.cardStack.pop();
+    GAME_STATE.hand.push(cardValue);
+
+    let card = createCard(cardValue, myColor);
+    handGroup.add(card);
+
+    refreshHandPositions();
+}
+
+function initLogic() {
     GAME_STATE = {
-        [myName]: {
-            cardStack: Array.from({ length: 58 }, (_, i) => i + 2).sort(() => Math.random() - 0.5),
-            hand: [],
-            upStack: 1,
-            downStack: 60
+        cardStack: Array.from({ length: 58 }, (_, i) => i + 2).sort(() => Math.random() - 0.5),
+        hand: [],
+        main: {
+            upStack: { value: 1, color: mainColor },
+            downStack: { value: 60, color: mainColor },
         },
-        [otherName]: {
-            cardStack: Array.from({ length: 58 }, (_, i) => i + 2).sort(() => Math.random() - 0.5),
-            hand: [],
-            upStack: 1,
-            downStack: 60
+        second: {
+            upStack: { value: 1, color: secondColor },
+            downStack: { value: 60, color: secondColor },
         },
-        currentPlayer: Math.random() < 0.5 ? myName : otherName,
+        currentPlayer: Math.random() < 0.5 ? myRole : otherRole,
         cardsPlayed: 0,
         unlockedRefill: false
     };
 
     for(let i = 0; i < 5; i++) {
-        drawCard(myName, false);
-        drawCard(otherName, false);
+        drawCard();
     }
 
-    //conn.send(packageData('INIT_GAME', GAME_STATE));
     initGameUI();
 }
 
 function initGameUI() {
     let card;
 
-    for(let i = 0; i < 5; i++) {
-        card = createCard(GAME_STATE[myName].hand[i]);
-        card.position.x = -4 + i * 2;
-        handGroup.add(card);
-    }
-    card = createCard(GAME_STATE[myName].upStack);
-    card.name = GAME_STATE[myName].upStack;
-    myUpStack.add(card);
-    card = createCard(GAME_STATE[myName].downStack);
-    card.name = GAME_STATE[myName].downStack;
-    myDownStack.add(card);
-
-    card = createCard(GAME_STATE[otherName].upStack);
-    card.name = GAME_STATE[otherName].upStack;
-    otherUpStack.add(card);
-    card = createCard(GAME_STATE[otherName].downStack);
-    card.name = GAME_STATE[otherName].downStack;
-    otherDownStack.add(card);
+    setStackCard(myUpStack, GAME_STATE[myRole].upStack.value, GAME_STATE[myRole].upStack.color);
+    setStackCard(myDownStack, GAME_STATE[myRole].downStack.value, GAME_STATE[myRole].downStack.color);
+    setStackCard(otherUpStack, GAME_STATE[otherRole].upStack.value, GAME_STATE[otherRole].upStack.color);
+    setStackCard(otherDownStack, GAME_STATE[otherRole].downStack.value, GAME_STATE[otherRole].downStack.color);
 
     render();
-    console.log(scene);
+
+    currentPlayerIndicator.innerText = GAME_STATE.currentPlayer == myRole ? 'Your Turn' : otherName + "'s Turn";
+    endTurnButton.style.display = GAME_STATE.currentPlayer == myRole ? 'block' : 'none';
 }
 
 function render() {
@@ -300,9 +316,28 @@ function render() {
     renderer.render(scene, camera);
 }
 
-/*initScene();
-if(isMainActor) {
-    initLogic();
-}*/
+function endTurn() {
+    if(GAME_STATE.currentPlayer !== myRole || GAME_STATE.cardsPlayed < 2) {
+        return;
+    }
+
+    GAME_STATE.currentPlayer = GAME_STATE.currentPlayer == 'main' ? 'second' : 'main';
+    currentPlayerIndicator.innerText = otherName + "'s Turn";
+    endTurnButton.style.display = 'none';
+
+    if(GAME_STATE.unlockedRefill) {
+        while(GAME_STATE.hand.length < 5 && GAME_STATE.cardStack.length > 0) {
+            drawCard();
+        }
+    } else {
+        drawCard();
+        drawCard();
+    }
+
+    GAME_STATE.cardsPlayed = 0;
+    GAME_STATE.unlockedRefill = false;
+    conn.send(packageData('END_TURN', { currentPlayer: GAME_STATE.currentPlayer }));
+}
+
 initScene();
 initLogic();

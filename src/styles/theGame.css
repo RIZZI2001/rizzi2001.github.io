@@ -1,2 +1,25 @@
 body { margin: 0; }
-        canvas { display: block; }
+canvas { display: block; }
+
+#ui-container {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+    color: white;
+    font-family: Arial, sans-serif;
+}
+#turn-indicator {
+    margin-bottom: 10px;
+}
+#end-turn-button {
+    padding: 10px 20px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+#end-turn-button:hover {
+    background-color: #218838;
+}

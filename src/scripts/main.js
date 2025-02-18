@@ -5,7 +5,8 @@ const peer = new Peer(); // Initialize PeerJS
 let conn = null; // Connection variable
 let myName = null; // My name
 let otherName = null; // Other player's name
-let isMainActor = null;
+let myRole = null; // The actor of the game
+let otherRole = null; // The other actor of the game
 let initSent = false;
 
 let GAME_STATE = null;
@@ -31,7 +32,6 @@ function setupPeerConnection() {
     });
 }
 
-// filepath: /c:/Users/bruel/Documents/Scripts/peerJS/src/scripts/main.js
 function switch2(pageName) {
     fetch(baseUrl + pageName + '.html')
         .then(response => response.text())
@@ -76,32 +76,30 @@ function handleData(data) {
     console.log(data);
     const { command, args } = unpackageData(data);
     console.log(args);
+
     switch(command) {
         case 'MESSAGE':
             displayMessage(args);
             break;
         case 'INIT':
-            isMainActor = false;
+            myRole = 'second';
+            otherRole = 'main';
             otherName = args.name;
             conn.send(packageData('INIT_ANS', { name: nameInput.value }));
             switch2(defaultApp);
             break;
         case 'INIT_ANS':
-            isMainActor = true;
+            myRole = 'main';
+            otherRole = 'second';
             otherName = args.name;
             switch2(defaultApp);
             break;
-        case 'INIT_GAME':
-            GAME_STATE = args;
-            initGameUI();
-            break;
-        case 'DRAW_CARD':
-            drawCard(args.player);
-            break;
+        default:
+            communication(command, args);
     }
 }
 
 // Initialize the peer connection
 setupPeerConnection();
-//switch2('connection');
-switch2('theGame');
+switch2('connection');
+//switch2('theGame');
