@@ -19,8 +19,7 @@ function communication(command, args) {
     console.log('Communication', command, args);
     switch(command) {
         case 'INIT_GAME':
-            GAME_STATE = args;
-            initGameUI();
+            GAME_STATE.currentPlayer = args.currentPlayer;
             break;
         case 'PLACE_CARD':
             placeCard(args.cardValue, args.stackType, args.stackOwnerRole, args.cardPlayerRole);
@@ -295,6 +294,10 @@ function initLogic() {
     }
 
     initGameUI();
+
+    if(myRole == 'main') {
+        conn.send(packageData('INIT_GAME', {currentPlayer: GAME_STATE.currentPlayer}));
+    }
 }
 
 function initGameUI() {
