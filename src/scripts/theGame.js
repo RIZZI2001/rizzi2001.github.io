@@ -1,5 +1,5 @@
-myRole = 'main';
-otherRole = 'second';
+/* myRole = 'main';
+otherRole = 'second'; */
 
 const currentPlayerIndicator = document.getElementById('current-player-indicator');
 const remainingCardsIndicator = document.getElementById('remaining-cards-indicator');
@@ -348,7 +348,6 @@ function updateTurnIndicator() {
         scene.background = new THREE.Color(secondColorDark);
         currentPlayerIndicator.style.color = hexToCssColor(secondColor);
     }
-    console.log(currentPlayerIndicator.style.color);
 }
 
 function endTurn() {
