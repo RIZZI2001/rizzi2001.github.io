@@ -24,7 +24,7 @@ const secondColorDark = 0x3a1a1a;
 const myColor = myRole == 'main' ? mainColor : secondColor;
 const otherColor = myRole == 'main' ? secondColor : mainColor;
 
-const windowSubtract = 0.0;
+const windowSubtract = 0.5;
 
 function communication(command, args) {
     switch(command) {
@@ -221,13 +221,35 @@ function onMouseUp(event) {
     }       
 }
 
-function setStackCard(stack, value, color) {
+function setStackCard(stack, value, color, animate = null, undo = false) {
+    let topCard = null;
     if(stack.children.length > 1) {
-        stack.remove(stack.children[stack.children.length - 1]);
+        topCard = stack.children[stack.children.length - 1];
     }
     const newCard = createCard(value, color);
     newCard.name = value;
-    stack.add(newCard);
+
+    if(!animate) {
+        if(topCard) { stack.remove(topCard); }
+        stack.add(newCard);
+    }else if(animate && !undo) {
+        console.log('animate place');
+        stack.add(newCard);
+        newCard.position.set(0, animate, 0);
+        new TWEEN.Tween(newCard.position).to({ x: 0, y: 0, z: 0 }, 500).easing(TWEEN.Easing.Quadratic.Out).start();        
+        setTimeout(() => {
+            if(topCard) { stack.remove(topCard); }
+        }, 500);
+    } else if(animate && undo) {
+        console.log('animate undo');
+        stack.add(newCard);
+        newCard.position.set(0, 0, 0);
+        topCard.position.set(0, 0, 0.01);
+        new TWEEN.Tween(topCard.position).to({ x: 0, y: animate, z: 0 }, 500).easing(TWEEN.Easing.Quadratic.Out).start();        
+        setTimeout(() => {
+            stack.remove(topCard);
+        }, 500);
+    }
     if(value == 60 || value == 1) {
         newCard.position.y = 1;
     }
@@ -265,7 +287,25 @@ function placeCard(cardValue, stackType, stackOwnerRole, cardPlayerRole, cardCol
     GAME_STATE[stackOwnerRole][stackType].color = color;
 
     const stack = stackOwnerRole == myRole ? (stackType == 'upStack' ? myUpStack : myDownStack) : (stackType == 'upStack' ? otherUpStack : otherDownStack);
-    setStackCard(stack, cardValue, color);
+    
+    let animate = null;
+    let undo = false;
+
+    console.log(cardPlayerRole, otherRole, cardColor, otherColor);
+    if(cardPlayerRole == otherRole) {
+        //Animate other turn
+        if(stackOwnerRole == myRole) {
+            animate = 9;
+        } else {
+            animate = -5;
+        }
+        if(cardColor != null) {
+            //Undo
+            undo = true;
+        }
+    }
+
+    setStackCard(stack, cardValue, color, animate, undo);
     
     selectedCard = null;
 
@@ -344,6 +384,7 @@ function initGameUI() {
 
 function render() {
     requestAnimationFrame(render);
+    TWEEN.update();
     renderer.render(scene, camera);
 }
 
