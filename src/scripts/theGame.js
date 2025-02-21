@@ -1,5 +1,4 @@
-/* myRole = 'main';
-otherRole = 'second'; */
+function startTheGame() {
 
 const currentPlayerIndicator = document.getElementById('current-player-indicator');
 const remainingCardsIndicator = document.getElementById('remaining-cards-indicator');
@@ -8,25 +7,22 @@ const undoButton = document.getElementById('undo-button');
 const endTurnButton = document.getElementById('end-turn-button');
 
 let scene, camera, renderer;
-
 let handGroup, myDownStack, myUpStack, otherDownStack, otherUpStack;
 let raycaster, mouse;
 let selectedCard = null;
 let offset = new THREE.Vector3();
-let intersectedObject = null;
-
-const mainColor = 0x83d684;
-const secondColor = 0xde6666;
-
-const mainColorDark = 0x1a3a1a;
-const secondColorDark = 0x3a1a1a;
-
-const myColor = myRole == 'main' ? mainColor : secondColor;
-const otherColor = myRole == 'main' ? secondColor : mainColor;
+let isRendering = true;
+let endGameTimeout;
 
 const windowSubtract = 0.5;
 
-function communication(command, args) {
+window.back2Selection = function() {
+    conn.send(packageData('BACK2SELECT', {}));
+    cleanupScene();
+    switch2('selection');
+}
+
+window.communication = function(command, args) {
     switch(command) {
         case 'INIT_GAME':
             GAME_STATE.currentPlayer = args.currentPlayer;
@@ -42,7 +38,56 @@ function communication(command, args) {
         case 'END_GAME':
             showWinner(args.winner);
             break;
+        case 'BACK2SELECT':
+            cleanupScene();
+            switch2('selection');
+            break;
     }
+}
+
+function cleanupScene() {
+    isRendering = false;
+
+    if(endGameTimeout) {
+        clearTimeout(endGameTimeout);
+        endGameTimeout = null;
+    }
+
+    // Remove all event listeners
+    window.removeEventListener('resize', onWindowResize, false);
+    window.removeEventListener('mousedown', onMouseDown, false);
+    window.removeEventListener('mousemove', onMouseMove, false);
+    window.removeEventListener('mouseup', onMouseUp, false);
+
+    // Remove the renderer's DOM element
+    if (renderer && renderer.domElement) {
+        document.body.removeChild(renderer.domElement);
+    }
+
+    // Dispose of the scene and its objects
+    if (scene) {
+        scene.traverse(object => {
+            if (object.geometry) object.geometry.dispose();
+            if (object.material) {
+                if (object.material.map) object.material.map.dispose();
+                object.material.dispose();
+            }
+        });
+    }
+
+    // Reset variables
+    scene = null;
+    camera = null;
+    renderer = null;
+    handGroup = null;
+    myDownStack = null;
+    myUpStack = null;
+    otherDownStack = null;
+    otherUpStack = null;
+    raycaster = null;
+    mouse = null;
+    selectedCard = null;
+    offset = new THREE.Vector3();
 }
 
 function createCard(number, color) {
@@ -198,9 +243,9 @@ function onMouseUp(event) {
         // Check for intersection with stacks
         raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects([myDownStack.children[myDownStack.children.length-1], myUpStack.children[myUpStack.children.length-1], otherDownStack.children[otherDownStack.children.length-1], otherUpStack.children[otherUpStack.children.length-1]]);
-
         if (intersects.length > 0) {
             const stack = intersects[0].object.parent;
+            console.log(stack);
             if (stack == myDownStack && selectedCard.name < GAME_STATE[myRole].downStack.value || selectedCard.name == GAME_STATE[myRole].downStack.value + 10) {
                 placeCard(selectedCard.name, 'downStack', myRole, myRole);
             } else if (stack == myUpStack && selectedCard.name > GAME_STATE[myRole].upStack.value || selectedCard.name == GAME_STATE[myRole].upStack.value - 10) {
@@ -233,7 +278,7 @@ function setStackCard(stack, value, color, animate = null, undo = false) {
         if(topCard) { stack.remove(topCard); }
         stack.add(newCard);
     }else if(animate && !undo) {
-        console.log('animate place');
+        //console.log('animate place');
         stack.add(newCard);
         newCard.position.set(0, animate, 0);
         new TWEEN.Tween(newCard.position).to({ x: 0, y: 0, z: 0 }, 500).easing(TWEEN.Easing.Quadratic.Out).start();        
@@ -241,7 +286,7 @@ function setStackCard(stack, value, color, animate = null, undo = false) {
             if(topCard) { stack.remove(topCard); }
         }, 500);
     } else if(animate && undo) {
-        console.log('animate undo');
+        //console.log('animate undo');
         stack.add(newCard);
         newCard.position.set(0, 0, 0);
         topCard.position.set(0, 0, 0.01);
@@ -291,7 +336,7 @@ function placeCard(cardValue, stackType, stackOwnerRole, cardPlayerRole, cardCol
     let animate = null;
     let undo = false;
 
-    console.log(cardPlayerRole, otherRole, cardColor, otherColor);
+    //console.log(cardPlayerRole, otherRole, cardColor, otherColor());
     if(cardPlayerRole == otherRole) {
         //Animate other turn
         if(stackOwnerRole == myRole) {
@@ -318,6 +363,10 @@ function placeCard(cardValue, stackType, stackOwnerRole, cardPlayerRole, cardCol
         showWinner(myName);
         undoButton.style.display = 'none';
         endTurnButton.style.display = 'none';
+        // 5 seconds to see the winner
+        endGameTimeout = setTimeout(() => {
+            back2Selection();
+        }, 5000);
     }
 }
 
@@ -326,7 +375,9 @@ function refreshHandPositions() {
     const offset = -cardCount + 1;
     for(let i = 0; i < cardCount; i++) {
         const card = handGroup.children.find(c => c.name == GAME_STATE.hand[i]);
-        card.position.set(offset + i * 2, 0, 0);
+        if (card) {
+            card.position.set(offset + i * 2, 0, 0);
+        }
     }
 }
 
@@ -334,7 +385,7 @@ function drawCard() {
     const cardValue = GAME_STATE.cardStack.pop();
     GAME_STATE.hand.push(cardValue);
 
-    let card = createCard(cardValue, myColor);
+    let card = createCard(cardValue, myColor());
     handGroup.add(card);
 
     refreshHandPositions();
@@ -383,6 +434,7 @@ function initGameUI() {
 }
 
 function render() {
+    if(!isRendering) return;
     requestAnimationFrame(render);
     TWEEN.update();
     renderer.render(scene, camera);
@@ -391,10 +443,6 @@ function render() {
 function showWinner(winnerName) {
     winnerIndicator.innerText = winnerName + ' Wins!';
     winnerIndicator.style.display = 'block';
-}
-
-function hexToCssColor(hex) {
-    return `#${new THREE.Color(hex).getHexString()}`;
 }
 
 function updateTurnIndicator() {
@@ -409,7 +457,7 @@ function updateTurnIndicator() {
     }
 }
 
-function endTurn() {
+window.endTurn = function() {
     if(GAME_STATE.currentPlayer !== myRole || GAME_STATE.cardsPlayed.length < 2) {
         return;
     }
@@ -433,7 +481,7 @@ function endTurn() {
     conn.send(packageData('END_TURN', { currentPlayer: GAME_STATE.currentPlayer }));
 }
 
-function undo() {
+window.undo = function() {
     if(GAME_STATE.currentPlayer !== myRole || GAME_STATE.cardsPlayed.length == 0) {
         return;
     }
@@ -449,7 +497,7 @@ function undo() {
     if(lastCard.stackOwnerRole !== myRole) {
         GAME_STATE.unlockedRefill = false;
     }
-    const card = createCard(lastCard.cardValue, myColor);
+    const card = createCard(lastCard.cardValue, myColor());
     handGroup.add(card);
     refreshHandPositions();
 
@@ -466,3 +514,7 @@ function undo() {
 
 initScene();
 initLogic();
+
+}
+
+startTheGame();

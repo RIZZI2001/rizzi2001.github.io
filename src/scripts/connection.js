@@ -49,3 +49,14 @@ function connect2peer() {
         });
     });
 }
+
+nameInput.addEventListener('keyup', (event) => {
+    if(event.key === 'Enter') {
+        submitName();
+    }
+});
+peerIdInput.addEventListener('keyup', (event) => {
+    if(event.key === 'Enter') {
+        connect2peer();
+    }
+});

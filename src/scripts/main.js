@@ -9,6 +9,28 @@ let myRole = null; // The actor of the game
 let otherRole = null; // The other actor of the game
 let initSent = false;
 
+let selectedGame = {
+    'main': null,
+    'other': null
+}
+
+const mainColor = 0x83d684;
+const secondColor = 0xde6666;
+
+const mainColorDark = 0x1a3a1a;
+const secondColorDark = 0x3a1a1a;
+
+function hexToCssColor(hex) {
+    return `#${new THREE.Color(hex).getHexString()}`;
+}
+
+function myColor() {
+    return myRole == 'main' ? mainColor : secondColor;
+}
+function otherColor() {
+    return otherRole == 'main' ? mainColor : secondColor;
+}
+
 let GAME_STATE = null;
 
 let baseUrl = 'http://localhost:8000/src/';
@@ -33,6 +55,7 @@ function setupPeerConnection() {
 }
 
 function switch2(pageName) {
+    //console.log('Switching to ' + pageName);
     fetch(baseUrl + pageName + '.html')
         .then(response => response.text())
         .then(html => {
@@ -45,6 +68,7 @@ function switch2(pageName) {
             const existingJs = document.querySelector('script[data-page]');
             if (existingJs) {
                 document.body.removeChild(existingJs);
+                console.log('Removed' + existingJs);
             }
 
             // Add new page-specific CSS
@@ -71,11 +95,9 @@ function unpackageData(data) {
 }
 
 function handleData(data) {
-    const defaultApp = 'theGame';
-
-    console.log(data);
+    //console.log(data);
     const { command, args } = unpackageData(data);
-    console.log(args);
+    //console.log(args);
 
     switch(command) {
         case 'MESSAGE':
@@ -86,13 +108,20 @@ function handleData(data) {
             otherRole = 'main';
             otherName = args.name;
             conn.send(packageData('INIT_ANS', { name: nameInput.value }));
-            switch2(defaultApp);
+            switch2('selection');
             break;
         case 'INIT_ANS':
             myRole = 'main';
             otherRole = 'second';
             otherName = args.name;
-            switch2(defaultApp);
+            switch2('selection');
+            break;
+        case 'SELECT':
+            selectedGame[otherRole] = args.game;
+            setBorder(otherColor(), args.game);
+            break;
+        case 'SWITCH2':
+            switch2(args.page);
             break;
         default:
             communication(command, args);
@@ -103,3 +132,4 @@ function handleData(data) {
 setupPeerConnection();
 switch2('connection');
 //switch2('theGame');
+//switch2('selection');
