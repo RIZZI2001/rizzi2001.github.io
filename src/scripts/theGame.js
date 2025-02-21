@@ -246,9 +246,9 @@ function onMouseUp(event) {
         if (intersects.length > 0) {
             const stack = intersects[0].object.parent;
             console.log(stack);
-            if (stack == myDownStack && selectedCard.name < GAME_STATE[myRole].downStack.value || selectedCard.name == GAME_STATE[myRole].downStack.value + 10) {
+            if (stack == myDownStack && (selectedCard.name < GAME_STATE[myRole].downStack.value || selectedCard.name == GAME_STATE[myRole].downStack.value + 10)) {
                 placeCard(selectedCard.name, 'downStack', myRole, myRole);
-            } else if (stack == myUpStack && selectedCard.name > GAME_STATE[myRole].upStack.value || selectedCard.name == GAME_STATE[myRole].upStack.value - 10) {
+            } else if (stack == myUpStack && (selectedCard.name > GAME_STATE[myRole].upStack.value || selectedCard.name == GAME_STATE[myRole].upStack.value - 10)) {
                 placeCard(selectedCard.name, 'upStack', myRole, myRole);
             } else if (stack == otherDownStack && selectedCard.name > GAME_STATE[otherRole].downStack.value && !GAME_STATE.unlockedRefill ) {
                 placeCard(selectedCard.name, 'downStack', otherRole, myRole);
@@ -301,6 +301,7 @@ function setStackCard(stack, value, color, animate = null, undo = false) {
 }
 
 function placeCard(cardValue, stackType, stackOwnerRole, cardPlayerRole, cardColor = null) {
+    console.log('Place Card ', cardValue, stackType, stackOwnerRole, cardPlayerRole, cardColor);
     if(cardPlayerRole == myRole) {
         GAME_STATE.hand.splice(GAME_STATE.hand.indexOf(cardValue), 1);
         handGroup.remove(selectedCard);
