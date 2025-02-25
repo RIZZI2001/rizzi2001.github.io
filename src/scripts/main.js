@@ -33,11 +33,6 @@ function otherColor() {
 
 let GAME_STATE = null;
 
-let baseUrl = 'http://localhost:8000/src/';
-if(window.location.href.includes('github')) {
-    baseUrl = 'https://rizzi2001.github.io/src/';
-}
-
 // Function to set up the peer connection
 function setupPeerConnection() {
     peer.on('open', (id) => {
@@ -128,8 +123,18 @@ function handleData(data) {
     }
 }
 
-// Initialize the peer connection
 setupPeerConnection();
-switch2('connection');
-//switch2('theGame');
-//switch2('selection');
+
+let baseUrl;
+if(window.location.href.includes('github')) {
+    baseUrl = 'https://rizzi2001.github.io/src/';
+    switch2('connection');
+} else {
+    baseUrl = 'http://localhost:8000/src/';
+    //switch2('connection');
+    switch2('qwirkle');
+    myRole = 'main';
+    myName = 'Player 1';
+    otherRole = 'second';
+    otherName = 'Player 2';
+}
