@@ -12,13 +12,20 @@ const undoButton = document.getElementById('undo-button');
 const endTurnButton = document.getElementById('end-turn-button');
 
 let handGroup;
+let handPlane;
+let boardGroup;
+let board;
 let raycaster, mouse;
-let selectedBlock = null;
-let offset = new THREE.Vector3();
+let zoomValue = 0, camPos = { x: 0, y: 10, z: 0 };
+let selectedBlockObject = null;
+let selectedInHand = null;
 let isRendering = true;
 let endGameTimeout;
 
 const windowSubtract = 0.5;
+
+let isPanning = false;
+let lastMousePosition = { x: 0, y: 0 };
 
 window.back2Selection = function() {
     conn.send(packageData('BACK2SELECT', {}));
@@ -44,7 +51,6 @@ window.communication = function(command, args) {
             break;
         case 'SEND_BLOCKS':
             GAME_STATE.hand = GAME_STATE.hand.concat(args.blocks);
-            refreshHandPositions();
         case 'END_TURN':
             GAME_STATE.currentPlayer = args.currentPlayer;
             updateTurnIndicator();
@@ -91,14 +97,14 @@ function cleanupScene(){
     camera = null;
     renderer = null;
     handGroup = null;
-    selectedBlock = null;
+    selectedBlockObject = null;
     raycaster = null;
     mouse = null;
     offset = null;
 }
 
 function createBlock(shape, color, id) {
-    const geometry = new THREE.BoxGeometry(1.5, 1.5, 0.3);
+    const geometry = new THREE.BoxGeometry(1, 1, 0.2);
 
     // Load the shape texture
     const loader = new THREE.TextureLoader();
@@ -127,16 +133,35 @@ function createBlock(shape, color, id) {
 function initScene() {
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.z = 10;
     renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth - windowSubtract, window.innerHeight - windowSubtract);
     document.body.appendChild(renderer.domElement);
 
     handGroup = new THREE.Group();
     handGroup.name = 'handGroup';
-    handGroup.position.y = -5;
-    scene.add(handGroup);
+    handGroup.position.set(0, -3, -6); // Center the handGroup in front of the camera
+    camera.add(handGroup);
 
+    //Add invisible plane to the handGroup
+    handPlane = new THREE.Mesh(new THREE.PlaneGeometry(8, 2), new THREE.MeshBasicMaterial({ transparent: false, opacity: 0 }));
+    handPlane.name = 'handPlane';
+    handGroup.add(handPlane);
+
+    scene.add(camera);
+    camera.rotation.set(-Math.PI / 4, 0, 0); // Set the camera rotation looking down at the board
+
+    boardGroup = new THREE.Group();
+    boardGroup.name = 'boardGroup';
+
+    const boardGeometry = new THREE.PlaneGeometry(6, 6);
+    const boardMaterial = new THREE.MeshBasicMaterial({ color: 0xFF0000, side: THREE.DoubleSide });
+    board = new THREE.Mesh(boardGeometry, boardMaterial);
+    board.name = 'board';
+    boardGroup.add(board);
+    board.rotation.x = -Math.PI / 2; // Rotate the board to be horizontal
+
+    scene.add(boardGroup);
+    
     raycaster = new THREE.Raycaster();
     mouse = new THREE.Vector2();
 
@@ -144,6 +169,7 @@ function initScene() {
     window.addEventListener('mousedown', onMouseDown, false);
     window.addEventListener('mousemove', onMouseMove, false);
     window.addEventListener('mouseup', onMouseUp, false);
+    window.addEventListener('mousewheel', onMousewheel, false);
 }
 
 function onWindowResize() {
@@ -154,64 +180,140 @@ function onWindowResize() {
 
 function onMouseDown(event) {
     event.preventDefault();
-    if(GAME_STATE.currentPlayer !== myRole) {
-        return;
-    }
+    if(GAME_STATE.currentPlayer == myRole) {
+        if(selectedBlockObject == null) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            let intersects = raycaster.intersectObjects(handGroup.children);
+            intersects = intersects.filter(intersect => intersect.object.name !== 'handPlane');
 
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(handGroup.children);
-
-    if (intersects.length > 0) {
-        selectedBlock = intersects[0].object;
-        const intersectsPlane = raycaster.intersectObject(selectedCard);
-        if (intersectsPlane.length > 0) {
-            offset.copy(intersectsPlane[0].point).sub(selectedCard.position);
+            if (intersects.length > 0) {
+                selectedBlockObject = intersects[0].object;
+                onMouseMove(event);
+                return;
+            }
+        } else {
+            if(selectedInHand) {
+                selectedBlockObject = null;
+                selectedInHand = false;
+            }
         }
-    }
+    } 
+    isPanning = true;
+    lastMousePosition.x = event.clientX;
+    lastMousePosition.y = event.clientY;
 }
 
 function onMouseMove(event) {
     event.preventDefault();
 
-    if (selectedBlock) {
+    if (selectedBlockObject) {
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
+        // Use raycaster to find intersection with handPlane
         raycaster.setFromCamera(mouse, camera);
+        let intersects = raycaster.intersectObjects([handPlane]);
 
-        // Calculate the new position of the selected card based on the mouse position
-        const vector = new THREE.Vector3(mouse.x, mouse.y, 0.5).unproject(camera);
-        const dir = vector.sub(camera.position).normalize();
-        const distance = (selectedBlock.position.z - camera.position.z) / dir.z;
-        const pos = camera.position.clone().add(dir.multiplyScalar(distance));
+        if (intersects.length > 0) {
+            const intersect = intersects[0];
+            selectedInHand = true;
 
-        selectedBlock.position.copy(pos.sub(offset));
-        selectedBlock.position.z = 1;
+            if(selectedBlockObject.parent !== handGroup) {
+                handGroup.add(selectedBlockObject);
+            }
+
+            const localPoint = handGroup.worldToLocal(intersect.point.clone());
+            selectedBlockObject.position.set(localPoint.x, localPoint.y, localPoint.z);
+            selectedBlockObject.rotation.set(0, 0, 0); // Reset rotation
+
+        } else {
+            selectedInHand = false;
+            intersects = raycaster.intersectObjects([board]);
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
+                const localPoint = boardGroup.worldToLocal(intersect.point.clone());
+
+                if(selectedBlockObject.parent !== boardGroup) {
+                    boardGroup.add(selectedBlockObject);
+                }
+                
+                selectedBlockObject.position.set(localPoint.x, localPoint.y, localPoint.z);
+                selectedBlockObject.rotation.set(-Math.PI / 2, 0, 0); // Rotate to face up
+            }
+        }
+
+        return;
     }
+
+    if (isPanning) {
+        const deltaX = (event.clientX - lastMousePosition.x) * 0.01; // Adjust sensitivity
+        const deltaY = (event.clientY - lastMousePosition.y) * 0.01;
+
+        panCamera(deltaX, -deltaY); // Pan the boardGroup
+        lastMousePosition.x = event.clientX;
+        lastMousePosition.y = event.clientY;
+        return;
+    }
+}
+
+function panCamera(deltaX, deltaY) {
+    camPos.x -= deltaX * 3;
+    camPos.z += deltaY * 3;
 }
 
 function onMouseUp(event) {
     event.preventDefault();
-
-    if (selectedBlock) {
-        //Check where the block is placed on the board
-    }       
+    isPanning = false;  
 }
 
-function placeBlock(args) {
-    //Place the block on the board
+function onMousewheel(event) {
+    //change camera position based on mouse wheel movement
+    zoomValue += event.deltaY * 0.01;
+    zoomValue = clamp(zoomValue, -3, 10); // Clamp the zoom value to a range
+}
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
 }
 
 function refreshHandPositions() {
-    const blockCount = GAME_STATE.hand.length;
-    const offset = -blockCount + 1;
+    let blockCount = GAME_STATE.hand.length;
+    if(selectedBlockObject != null && !selectedInHand) {
+        // Selected block is hovering over the board
+        blockCount--;
+    }
+    const offset = -blockCount * 1.3 / 2 + 0.65; // Center the blocks
+
+    let newSelectedPosId = -1;
+    if(selectedBlockObject != null && selectedInHand) {
+        // Calculate the closest id depending on the position of the block
+        newSelectedPosId = Math.round((selectedBlockObject.position.x - offset) / 1.3);
+        if(newSelectedPosId < 0) newSelectedPosId = 0;
+        if(newSelectedPosId >= blockCount) newSelectedPosId = blockCount;
+
+        let oldSelectedPosId = GAME_STATE.hand.findIndex(b => b.id === selectedBlockObject.userData.id);
+        while(oldSelectedPosId !== newSelectedPosId) {
+            if(oldSelectedPosId < newSelectedPosId) {
+                GAME_STATE.hand.splice(newSelectedPosId, 0, GAME_STATE.hand.splice(oldSelectedPosId, 1)[0]);
+            } else {
+                GAME_STATE.hand.splice(oldSelectedPosId, 1);
+                GAME_STATE.hand.splice(newSelectedPosId, 0, selectedBlockObject.userData);
+            }
+            oldSelectedPosId = GAME_STATE.hand.findIndex(b => b.id === selectedBlockObject.userData.id);
+        }
+    }
+    
     for(let i = 0; i < blockCount; i++) {
         const block = handGroup.children.find(b => b.userData.id === GAME_STATE.hand[i].id);
+        if (block == selectedBlockObject) { // Skip the selected block
+            continue;
+        }
+
         if (block) {
-            block.position.set(offset + i * 2, 0, 0);
+            block.position.set(offset + i * 1.3, 0, 0);
         }
     }
 }
@@ -225,7 +327,6 @@ function drawBlocks() {
             let block = createBlock(GAME_STATE.hand[i].shape, GAME_STATE.hand[i].color, GAME_STATE.hand[i].id);
             handGroup.add(block);
         }
-        refreshHandPositions();
     } else {
         conn.send(packageData('GET_BLOCKS', {amount: blockAmount}));
     }
@@ -272,6 +373,8 @@ function initGameUI() {
 
 function render() {
     if(!isRendering) return;
+    camera.position.set(camPos.x, camPos.y + zoomValue, camPos.z + zoomValue);
+    refreshHandPositions();
     requestAnimationFrame(render);
     TWEEN.update();
     renderer.render(scene, camera);
@@ -317,7 +420,6 @@ window.undo = function() {
 
 initScene();
 initLogic();
-
 
 }
 
