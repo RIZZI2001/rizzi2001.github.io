@@ -138,3 +138,5 @@ if(window.location.href.includes('github')) {
     otherRole = 'second';
     otherName = 'Player 2';
 }
+
+//python -m http.server

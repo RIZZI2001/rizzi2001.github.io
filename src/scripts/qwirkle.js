@@ -1,4 +1,15 @@
 let scene, camera, renderer;
+let handGroup;
+let handPlane;
+let boardGroup;
+let boardPlane;
+let bagPlane;
+let raycaster, mouse;
+let zoomValue = 0, camPos = { x: 0, y: 10, z: 6 };
+let selectedBlockObject = null;
+let selectedInState = null;
+let isRendering = true;
+let endGameTimeout;
 
 function startQwirkle() {
 
@@ -10,17 +21,6 @@ const remainingCardsIndicator = document.getElementById('remaining-cards-indicat
 const winnerIndicator = document.getElementById('winner-indicator');
 const undoButton = document.getElementById('undo-button');
 const endTurnButton = document.getElementById('end-turn-button');
-
-let handGroup;
-let handPlane;
-let boardGroup;
-let board;
-let raycaster, mouse;
-let zoomValue = 0, camPos = { x: 0, y: 10, z: 0 };
-let selectedBlockObject = null;
-let selectedInHand = null;
-let isRendering = true;
-let endGameTimeout;
 
 const windowSubtract = 0.5;
 
@@ -142,23 +142,46 @@ function initScene() {
     handGroup.position.set(0, -3, -6); // Center the handGroup in front of the camera
     camera.add(handGroup);
 
-    //Add invisible plane to the handGroup
-    handPlane = new THREE.Mesh(new THREE.PlaneGeometry(8, 2), new THREE.MeshBasicMaterial({ transparent: false, opacity: 0 }));
+    handPlane = new THREE.Mesh(new THREE.PlaneGeometry(7, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
     handPlane.name = 'handPlane';
-    handGroup.add(handPlane);
+    handPlane.position.set(0, -3, -6);
+    camera.add(handPlane);
+
+    const loader = new THREE.TextureLoader();
+
+    const bagTexture = loader.load('qwirkleShapes/bag.png');
+    const bagMaterial = new THREE.MeshBasicMaterial({ map: bagTexture, transparent: true });
+    bagPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), bagMaterial);
+    bagPlane.name = 'bagPlane';
+    bagPlane.position.set(5, -3, -6);
+    camera.add(bagPlane);
 
     scene.add(camera);
-    camera.rotation.set(-Math.PI / 4, 0, 0); // Set the camera rotation looking down at the board
+    camera.rotation.set(-Math.PI / 3, 0, 0);
 
     boardGroup = new THREE.Group();
     boardGroup.name = 'boardGroup';
 
-    const boardGeometry = new THREE.PlaneGeometry(6, 6);
-    const boardMaterial = new THREE.MeshBasicMaterial({ color: 0xFF0000, side: THREE.DoubleSide });
-    board = new THREE.Mesh(boardGeometry, boardMaterial);
-    board.name = 'board';
-    boardGroup.add(board);
-    board.rotation.x = -Math.PI / 2; // Rotate the board to be horizontal
+    const boardGeometry = new THREE.PlaneGeometry(3, 3);
+
+    const boardTexture = loader.load('qwirkleShapes/board.png', function (texture) {
+        texture.wrapS = THREE.RepeatWrapping; // Enable horizontal tiling
+        texture.wrapT = THREE.RepeatWrapping; // Enable vertical tiling
+        texture.repeat.set(3, 3); // Tile the texture 6x6 times
+    });
+
+    const boardMaterial = new THREE.MeshBasicMaterial({ map: boardTexture, side: THREE.DoubleSide });
+    boardPlane = new THREE.Mesh(boardGeometry, boardMaterial);
+    boardPlane.name = 'boardPlane';
+    boardGroup.add(boardPlane);
+    boardPlane.rotation.x = -Math.PI / 2; // Rotate the board to be horizontal
+
+    const highlightTexture = loader.load('qwirkleShapes/boardHighlight.png');
+    const highlightMaterial = new THREE.MeshBasicMaterial({ map: highlightTexture, transparent: true });
+    highlightPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), highlightMaterial);
+    highlightPlane.rotation.x = -Math.PI / 2; // Align with the board
+    highlightPlane.visible = false; // Initially hidden
+    boardGroup.add(highlightPlane);
 
     scene.add(boardGroup);
     
@@ -187,23 +210,61 @@ function onMouseDown(event) {
 
             raycaster.setFromCamera(mouse, camera);
             let intersects = raycaster.intersectObjects(handGroup.children);
-            intersects = intersects.filter(intersect => intersect.object.name !== 'handPlane');
 
             if (intersects.length > 0) {
                 selectedBlockObject = intersects[0].object;
                 onMouseMove(event);
                 return;
             }
-        } else {
-            if(selectedInHand) {
+        } else if(selectedInState === 'hand') {
+            selectedBlockObject = null;
+            selectedInState = null;
+        } else if(selectedInState === 'board') {
+            blockPos = [selectedBlockObject.position.clone().x, selectedBlockObject.position.clone().z];
+            if(checkValidMove(selectedBlockObject, blockPos)) {
+                let blockID = GAME_STATE.hand.findIndex(b => b.id === selectedBlockObject.userData.id);
+                if(blockID >= 0) {
+                    GAME_STATE.hand.splice(blockID, 1);
+                    GAME_STATE.board[blockPos] = selectedBlockObject.userData;
+                    GAME_STATE.movesThisTurn.push({place: 'board', block: selectedBlockObject.userData, pos: blockPos});
+                    console.log(GAME_STATE.movesThisTurn);
+                }
+                selectedBlockObject.position.y = 0.1; // Set the block on the board
                 selectedBlockObject = null;
-                selectedInHand = false;
+                selectedInState = null;
+
+                refreshHandPositions();
+                updateBoardSize();
+                highlightPlane.visible = false;
+
+                endTurnButton.style.display = 'block';
+                undoButton.style.display = 'block';
             }
+        } else if(selectedInState === 'bag') {
+            const block = GAME_STATE.hand.find(b => b.id === selectedBlockObject.userData.id);
+            if(block) {
+                GAME_STATE.hand.splice(GAME_STATE.hand.findIndex(b => b.id === block.id), 1);
+                GAME_STATE.bagCache.push(block);
+                GAME_STATE.movesThisTurn.push({place: 'bag', block: block, pos: null});
+                console.log(GAME_STATE.movesThisTurn);
+                handGroup.remove(selectedBlockObject);
+                selectedBlockObject = null;
+                selectedInState = null;
+                refreshHandPositions();
+            }
+            endTurnButton.style.display = 'block';
+            undoButton.style.display = 'block';
         }
     } 
     isPanning = true;
     lastMousePosition.x = event.clientX;
     lastMousePosition.y = event.clientY;
+}
+
+function checkValidMove(block, position) {
+    if(!block || !position) return false;
+    if(GAME_STATE.board[position]) return false; //Occupied position
+    return true; // Placeholder for actual game logic
 }
 
 function onMouseMove(event) {
@@ -213,55 +274,60 @@ function onMouseMove(event) {
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-        // Use raycaster to find intersection with handPlane
         raycaster.setFromCamera(mouse, camera);
-        let intersects = raycaster.intersectObjects([handPlane]);
+        let intersects = raycaster.intersectObjects([handPlane, boardPlane, bagPlane]); //
 
         if (intersects.length > 0) {
-            const intersect = intersects[0];
-            selectedInHand = true;
+            if(intersects[0].object.name === 'handPlane' || intersects[0].object.name === 'bagPlane') {
+                highlightPlane.visible = false;
 
-            if(selectedBlockObject.parent !== handGroup) {
-                handGroup.add(selectedBlockObject);
-            }
+                if(intersects[0].object.name === 'handPlane') {
+                    selectedInState = 'hand';
+                } else {
+                    selectedInState = 'bag';
+                }
+                const intersect = intersects[0];
 
-            const localPoint = handGroup.worldToLocal(intersect.point.clone());
-            selectedBlockObject.position.set(localPoint.x, localPoint.y, localPoint.z);
-            selectedBlockObject.rotation.set(0, 0, 0); // Reset rotation
+                if(selectedBlockObject.parent !== handGroup) {
+                    handGroup.add(selectedBlockObject);
+                }
 
-        } else {
-            selectedInHand = false;
-            intersects = raycaster.intersectObjects([board]);
-            if (intersects.length > 0) {
+                const localPoint = handGroup.worldToLocal(intersect.point.clone());
+                selectedBlockObject.position.set(localPoint.x, localPoint.y, localPoint.z);
+                selectedBlockObject.rotation.set(0, 0, 0); // Reset rotation
+            } else if(intersects[0].object.name === 'boardPlane') {
+                selectedInState = 'board';
                 const intersect = intersects[0];
                 const localPoint = boardGroup.worldToLocal(intersect.point.clone());
+                const tileX = Math.round(localPoint.x);
+                const tileZ = Math.round(localPoint.z);
 
-                if(selectedBlockObject.parent !== boardGroup) {
+                highlightPlane.position.set(tileX, 0.01, tileZ); // Slightly above the board
+                highlightPlane.visible = true;
+
+                if (selectedBlockObject.parent !== boardGroup) {
                     boardGroup.add(selectedBlockObject);
                 }
-                
-                selectedBlockObject.position.set(localPoint.x, localPoint.y, localPoint.z);
+
+                selectedBlockObject.position.set(tileX, localPoint.y + 1.0, tileZ);
                 selectedBlockObject.rotation.set(-Math.PI / 2, 0, 0); // Rotate to face up
             }
         }
-
         return;
+    } else {
+        selectedInState = null;
     }
 
     if (isPanning) {
         const deltaX = (event.clientX - lastMousePosition.x) * 0.01; // Adjust sensitivity
         const deltaY = (event.clientY - lastMousePosition.y) * 0.01;
 
-        panCamera(deltaX, -deltaY); // Pan the boardGroup
+        camPos.x -= deltaX * 3;
+        camPos.z -= deltaY * 3;
         lastMousePosition.x = event.clientX;
         lastMousePosition.y = event.clientY;
         return;
     }
-}
-
-function panCamera(deltaX, deltaY) {
-    camPos.x -= deltaX * 3;
-    camPos.z += deltaY * 3;
 }
 
 function onMouseUp(event) {
@@ -272,27 +338,53 @@ function onMouseUp(event) {
 function onMousewheel(event) {
     //change camera position based on mouse wheel movement
     zoomValue += event.deltaY * 0.01;
-    zoomValue = clamp(zoomValue, -3, 10); // Clamp the zoom value to a range
+    zoomValue = clamp(zoomValue, -2.5, 10); // Clamp the zoom value to a range
 }
 
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
 
+function updateBoardSize() {
+    let minX = -1, minZ = -1, maxX = 1, maxZ = 1;
+    for (let block in GAME_STATE.board) {
+        let pos = block.split(',');
+        let x = parseInt(pos[0]);
+        let z = parseInt(pos[1]);
+
+        if (x-1 < minX) minX = x-1;
+        if (z-1 < minZ) minZ = z-1;
+        if (x+1 > maxX) maxX = x+1;
+        if (z+1 > maxZ) maxZ = z+1;
+    }
+    const width = maxX - minX + 1;
+    const height = maxZ - minZ + 1;
+    console.log('Board size:', width, height);
+    const boardGeometry = new THREE.PlaneGeometry(width, height);
+    const boardTexture = new THREE.TextureLoader().load('qwirkleShapes/board.png', function (texture) {
+        texture.wrapS = THREE.RepeatWrapping; // Enable horizontal tiling
+        texture.wrapT = THREE.RepeatWrapping; // Enable vertical tiling
+        texture.repeat.set(width, height); // Tile the texture based on the board size
+    });
+    boardPlane.geometry.dispose(); // Dispose of the old geometry
+    boardPlane.geometry = boardGeometry;
+    boardPlane.material.map.dispose(); // Dispose of the old texture
+    boardPlane.material.map = boardTexture; // Set the new texture
+
+    boardPlane.position.set((minX + maxX) / 2, 0, (minZ + maxZ) / 2); // Center the board
+}
+
 function refreshHandPositions() {
     let blockCount = GAME_STATE.hand.length;
-    if(selectedBlockObject != null && !selectedInHand) {
-        // Selected block is hovering over the board
-        blockCount--;
-    }
-    const offset = -blockCount * 1.3 / 2 + 0.65; // Center the blocks
+
+    const offset = -(blockCount - Number(selectedInState === 'board' || selectedInState === 'bag')) * 1.3 / 2 + 0.65; // Center the blocks
 
     let newSelectedPosId = -1;
-    if(selectedBlockObject != null && selectedInHand) {
+    if(selectedInState === 'hand') {
         // Calculate the closest id depending on the position of the block
         newSelectedPosId = Math.round((selectedBlockObject.position.x - offset) / 1.3);
         if(newSelectedPosId < 0) newSelectedPosId = 0;
-        if(newSelectedPosId >= blockCount) newSelectedPosId = blockCount;
+        if(newSelectedPosId >= blockCount) newSelectedPosId = blockCount - 1;
 
         let oldSelectedPosId = GAME_STATE.hand.findIndex(b => b.id === selectedBlockObject.userData.id);
         while(oldSelectedPosId !== newSelectedPosId) {
@@ -305,25 +397,42 @@ function refreshHandPositions() {
             oldSelectedPosId = GAME_STATE.hand.findIndex(b => b.id === selectedBlockObject.userData.id);
         }
     }
-    
+    let moveLeft = 0;
     for(let i = 0; i < blockCount; i++) {
-        const block = handGroup.children.find(b => b.userData.id === GAME_STATE.hand[i].id);
-        if (block == selectedBlockObject) { // Skip the selected block
+        let blockID = GAME_STATE.hand[i].id;
+        if (selectedBlockObject && blockID == selectedBlockObject.userData.id) {
+            if(selectedInState === 'board' || selectedInState === 'bag') { 
+                moveLeft = -1;
+            }
             continue;
         }
 
+        let block = handGroup.children.find(b => b.userData.id == blockID);
         if (block) {
-            block.position.set(offset + i * 1.3, 0, 0);
+            block.position.set(offset + (i + moveLeft) * 1.3, 0, 0);
         }
     }
 }
 
-function drawBlocks() {
+function drawBlocks(doublesAllowed = true) {
     const blockAmount = 6 - GAME_STATE.hand.length;
 
     if(myRole == 'main') {
         for (let i = 0; i < blockAmount; i++) {
-            GAME_STATE.hand.push(GAME_STATE.bag.pop());
+            let drawnBlock = GAME_STATE.bag.pop();
+
+            if(!doublesAllowed) {
+                // Check if the block is already in hand
+                const blockInHand = GAME_STATE.hand.find(b => b.shape === drawnBlock.shape && b.color === drawnBlock.color);
+                if(blockInHand) {
+                    const randomIndex = Math.floor(Math.random() * GAME_STATE.bag.length);
+                    GAME_STATE.bag.splice(randomIndex, 0, drawnBlock);
+                    i--;
+                    continue;
+                }
+            }
+            GAME_STATE.hand.push(drawnBlock);
+
             let block = createBlock(GAME_STATE.hand[i].shape, GAME_STATE.hand[i].color, GAME_STATE.hand[i].id);
             handGroup.add(block);
         }
@@ -350,10 +459,13 @@ function initLogic() {
         main: 0,
         second: 0,
         hand: [],
-        bag: blockArray
+        bag: blockArray,
+        bagCache: [],
+        board: {},
+        movesThisTurn: []
     };
 
-    drawBlocks();
+    drawBlocks(false);
     console.log(GAME_STATE.hand);
 
     initGameUI();
@@ -373,7 +485,7 @@ function initGameUI() {
 
 function render() {
     if(!isRendering) return;
-    camera.position.set(camPos.x, camPos.y + zoomValue, camPos.z + zoomValue);
+    camera.position.set(camPos.x, camPos.y + zoomValue, camPos.z + zoomValue * 0.7);
     refreshHandPositions();
     requestAnimationFrame(render);
     TWEEN.update();
@@ -409,12 +521,49 @@ window.endTurn = function() {
 
     drawBlocks();
 
+    if(GAME_STATE.bagCache.length > 0) {
+        GAME_STATE.bag = GAME_STATE.bag.concat(GAME_STATE.bagCache);
+        GAME_STATE.bagCache = [];
+    }
+    GAME_STATE.movesThisTurn = [];
+
     conn.send(packageData('END_TURN', { currentPlayer: GAME_STATE.currentPlayer }));
 }
 
 window.undo = function() {
     if(GAME_STATE.currentPlayer !== myRole) {
         return;
+    }
+    if(GAME_STATE.movesThisTurn.length > 0) {
+        let lastMove = GAME_STATE.movesThisTurn.pop();
+
+        //Add the block back to the hand
+        GAME_STATE.hand.push(lastMove.block);
+        selectedBlockObject = createBlock(lastMove.block.shape, lastMove.block.color, lastMove.block.id);
+        selectedBlockObject.position.set(0, 0, 0);
+        selectedBlockObject.rotation.set(0, 0, 0);
+        handGroup.add(selectedBlockObject);
+        selectedBlockObject = null;
+        selectedInState = null;
+        refreshHandPositions();
+
+        if(lastMove.place == 'board') {
+            //Remove the block from the board
+            delete GAME_STATE.board[lastMove.pos];
+            boardGroup.remove(boardGroup.children.find(b => b.userData.id == lastMove.block.id));
+            highlightPlane.visible = false;
+            updateBoardSize();
+        }
+        if(lastMove.place == 'bag') {
+            //Remove the block from the bag
+            GAME_STATE.bagCache.splice(GAME_STATE.bagCache.findIndex(b => b.id == lastMove.block.id), 1);
+        }
+        console.log(GAME_STATE);
+
+        if(GAME_STATE.movesThisTurn.length == 0) {
+            endTurnButton.style.display = 'none';
+            undoButton.style.display = 'none';
+        }
     }
 }
 
