@@ -131,8 +131,8 @@ if(window.location.href.includes('github')) {
     switch2('connection');
 } else {
     baseUrl = 'http://localhost:8000/src/';
-    //switch2('connection');
-    switch2('qwirkle');
+    switch2('connection');
+    //switch2('qwirkle');
     myRole = 'main';
     myName = 'Player 1';
     otherRole = 'second';

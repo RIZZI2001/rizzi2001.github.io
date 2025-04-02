@@ -26,7 +26,11 @@ function copyOwnId() {
     el.select();
     document.execCommand('copy');
     document.body.removeChild(el);
-    alert('ID copied to clipboard');
+    const btn = document.getElementById('id-clipboard-button');
+    btn.innerText = 'Copied!';
+    setTimeout(() => {
+        btn.innerText = 'Copy your ID';
+    }, 1000);
 }
 
 function connect2peer() {

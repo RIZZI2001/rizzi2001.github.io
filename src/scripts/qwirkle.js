@@ -17,7 +17,8 @@ const SHAPES = ['circle', 'square', 'diamond', 'leaf', 'star', 'cross'];
 const COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
 
 const currentPlayerIndicator = document.getElementById('current-player-indicator');
-const remainingCardsIndicator = document.getElementById('remaining-cards-indicator');
+const remainingBlocksIndicator = document.getElementById('remaining-blocks-indicator');
+const scoreIndicator = document.getElementById('score-indicator');
 const winnerIndicator = document.getElementById('winner-indicator');
 const undoButton = document.getElementById('undo-button');
 const endTurnButton = document.getElementById('end-turn-button');
@@ -36,32 +37,60 @@ window.back2Selection = function() {
 window.communication = function(command, args) {
     switch(command) {
         case 'INIT_GAME':
+            console.log('Game initialized:', args);
+            initLogic(args.bag, args.maxPlacableBlocks);
+            break;
+        case 'UPDATE_BAG':
+            GAME_STATE.bag = args.bag;
+            remainingBlocksIndicator.innerText = GAME_STATE.bag.length + ' Blocks';
+            break;
+        case 'SET_TURN':
             GAME_STATE.currentPlayer = args.currentPlayer;
             updateTurnIndicator();
             break;
         case 'PLACE_BLOCK':
-            placeBlock(args);
+            OtherPlacedBlock(args.block, args.pos);
             break;
-        case 'GET_BLOCKS':
-            let blocks = [];
-            for (let i = 0; i < args.amount; i++) {
-                blocks.push(GAME_STATE.bag.pop());
-            }
-            conn.send(packageData('SEND_BLOCKS', {blocks: blocks}));
+        case 'REMOVE_BLOCK':
+            RemoveBlock(args.block, args.pos);
             break;
-        case 'SEND_BLOCKS':
-            GAME_STATE.hand = GAME_STATE.hand.concat(args.blocks);
         case 'END_TURN':
             GAME_STATE.currentPlayer = args.currentPlayer;
+            GAME_STATE.bag = args.bag;
+            remainingBlocksIndicator.innerText = GAME_STATE.bag.length + ' Blocks';
             updateTurnIndicator();
+            updateScore();
             break;
         case 'END_GAME':
+            updateScore();
             showWinner(args.winner);
             break;
         case 'BACK2SELECT':
             cleanupScene();
             switch2('selection');
             break;
+    }
+}
+
+function OtherPlacedBlock(block, pos) {
+    console.log('Placing block:', block, 'at position:', pos);
+    let newBlock = createBlock(block.shape, block.color, block.id);
+    newBlock.position.set(pos[0], 22, pos[1]-10); // Start above the board
+    newBlock.rotation.set(-Math.PI / 2, 0, 0); // Rotate to face up
+    new TWEEN.Tween(newBlock.position).to({ x: pos[0], y: 0.1, z: pos[1] }, 1000).easing(TWEEN.Easing.Quadratic.Out).start();
+    boardGroup.add(newBlock);
+    GAME_STATE.board[pos] = block;
+    updateBoardSize();
+}
+
+function RemoveBlock(block, pos) {
+    const blockToRemove = boardGroup.children.find(b => b.userData.id == block.id);
+    if (blockToRemove) {
+        delete GAME_STATE.board[pos];
+        new TWEEN.Tween(blockToRemove.position).to({ x: pos[0], y: 22, z: pos[1]-10 }, 1000).easing(TWEEN.Easing.Quadratic.Out).onComplete(() => {
+            boardGroup.remove(blockToRemove);
+            updateBoardSize();
+        }).start();
     }
 }
 
@@ -220,13 +249,19 @@ function onMouseDown(event) {
             selectedBlockObject = null;
             selectedInState = null;
         } else if(selectedInState === 'board') {
+            if(GAME_STATE.movesThisTurn.length > 0 && GAME_STATE.movesThisTurn[GAME_STATE.movesThisTurn.length - 1].place == 'bag') {
+                alert('Cannot place block on board after placing in bag');
+                return;
+            }
+
             blockPos = [selectedBlockObject.position.clone().x, selectedBlockObject.position.clone().z];
             if(checkValidMove(selectedBlockObject, blockPos)) {
-                let blockID = GAME_STATE.hand.findIndex(b => b.id === selectedBlockObject.userData.id);
+                let blockData = selectedBlockObject.userData;
+                let blockID = GAME_STATE.hand.findIndex(b => b.id === blockData.id);
                 if(blockID >= 0) {
                     GAME_STATE.hand.splice(blockID, 1);
-                    GAME_STATE.board[blockPos] = selectedBlockObject.userData;
-                    GAME_STATE.movesThisTurn.push({place: 'board', block: selectedBlockObject.userData, pos: blockPos});
+                    GAME_STATE.board[blockPos] = blockData;
+                    GAME_STATE.movesThisTurn.push({place: 'board', block: blockData, pos: blockPos});
                     console.log(GAME_STATE.movesThisTurn);
                 }
                 selectedBlockObject.position.y = 0.1; // Set the block on the board
@@ -239,8 +274,15 @@ function onMouseDown(event) {
 
                 endTurnButton.style.display = 'block';
                 undoButton.style.display = 'block';
+
+                conn.send(packageData('PLACE_BLOCK', { block: blockData, pos: blockPos }));
             }
         } else if(selectedInState === 'bag') {
+            if(GAME_STATE.movesThisTurn.length > 0 && GAME_STATE.movesThisTurn[GAME_STATE.movesThisTurn.length - 1].place == 'board') {
+                alert('Cannot place block in bag after placing on board');
+                return;
+            }
+
             const block = GAME_STATE.hand.find(b => b.id === selectedBlockObject.userData.id);
             if(block) {
                 GAME_STATE.hand.splice(GAME_STATE.hand.findIndex(b => b.id === block.id), 1);
@@ -415,72 +457,102 @@ function refreshHandPositions() {
 }
 
 function drawBlocks(doublesAllowed = true) {
-    const blockAmount = 6 - GAME_STATE.hand.length;
+    for (let i = GAME_STATE.hand.length; i < 6; i++) {
+        let drawnBlock = GAME_STATE.bag.pop();
 
-    if(myRole == 'main') {
-        for (let i = 0; i < blockAmount; i++) {
-            let drawnBlock = GAME_STATE.bag.pop();
-
-            if(!doublesAllowed) {
-                // Check if the block is already in hand
-                const blockInHand = GAME_STATE.hand.find(b => b.shape === drawnBlock.shape && b.color === drawnBlock.color);
-                if(blockInHand) {
-                    const randomIndex = Math.floor(Math.random() * GAME_STATE.bag.length);
-                    GAME_STATE.bag.splice(randomIndex, 0, drawnBlock);
-                    i--;
-                    continue;
-                }
+        if(!doublesAllowed) {
+            // Check if the block is already in hand
+            const blockInHand = GAME_STATE.hand.find(b => b.shape === drawnBlock.shape && b.color === drawnBlock.color);
+            if(blockInHand) {
+                const randomIndex = Math.floor(Math.random() * GAME_STATE.bag.length);
+                GAME_STATE.bag.splice(randomIndex, 0, drawnBlock);
+                i--;
+                continue;
             }
-            GAME_STATE.hand.push(drawnBlock);
-
-            let block = createBlock(GAME_STATE.hand[i].shape, GAME_STATE.hand[i].color, GAME_STATE.hand[i].id);
-            handGroup.add(block);
         }
-    } else {
-        conn.send(packageData('GET_BLOCKS', {amount: blockAmount}));
+        GAME_STATE.hand.push(drawnBlock);
+
+        let block = createBlock(drawnBlock.shape, drawnBlock.color, drawnBlock.id);
+        handGroup.add(block);
     }
 }
 
-function initLogic() {
-    const blockArray = [];
-    let blockID = 0;
-    for (let i = 0; i < 6; i++) {
-        for (let j = 0; j < 6; j++) {
-            for (let k = 0; k < 3; k++) {
-                blockArray.push({ shape: SHAPES[i], color: COLORS[j], id: blockID++ });
-                blockID++;
-            }
-        }
-    }
-    blockArray.sort(() => Math.random() - 0.5);
-
+function initLogic(bag = null, maxPlacableBlocksofOther = 0) {
     GAME_STATE = {
-        currentPlayer: myRole, //Math.random() < 0.5 ? myRole : otherRole,
+        currentPlayer: null,
         main: 0,
         second: 0,
         hand: [],
-        bag: blockArray,
+        bag: [],
         bagCache: [],
         board: {},
         movesThisTurn: []
     };
 
+    if(myRole == 'main') {
+        otherRole = 'second';
+        const blockArray = [];
+        let blockID = 0;
+        for (let i = 0; i < 6; i++) {
+            for (let j = 0; j < 6; j++) {
+                for (let k = 0; k < 3; k++) {
+                    blockArray.push({ shape: SHAPES[i], color: COLORS[j], id: blockID++ });
+                    blockID++;
+                }
+            }
+        }
+        blockArray.sort(() => Math.random() - 0.5);
+
+        GAME_STATE.bag = blockArray;
+    } else {
+        otherRole = 'main';
+        GAME_STATE.bag = bag;
+    }
+
     drawBlocks(false);
     console.log(GAME_STATE.hand);
 
-    initGameUI();
+    render();
+
+    endTurnButton.style.display = 'none';
+    undoButton.style.display = 'none';
+    updateScore();
 
     if(myRole == 'main') {
-        //conn.send(packageData('INIT_GAME', {currentPlayer: GAME_STATE.currentPlayer, bag: GAME_STATE.bag}));
+        const maxPlacableBlocks = getMaxPlacableBlocks(GAME_STATE.hand);
+        conn.send(packageData('INIT_GAME', {bag: GAME_STATE.bag, maxPlacableBlocks: maxPlacableBlocks}));
+    } else {
+        remainingBlocksIndicator.innerText = GAME_STATE.bag.length + ' Blocks';
+        conn.send(packageData('UPDATE_BAG', { bag: GAME_STATE.bag }));
+        const maxPlacableBlocks = getMaxPlacableBlocks(GAME_STATE.hand);
+        if(maxPlacableBlocks > maxPlacableBlocksofOther) {
+            GAME_STATE.currentPlayer = myRole;
+        } else if(maxPlacableBlocks < maxPlacableBlocksofOther) {
+            GAME_STATE.currentPlayer = otherRole;
+        } else {
+            GAME_STATE.currentPlayer = Math.random() < 0.5 ? myRole : otherRole;
+        }
+        updateTurnIndicator();
+        conn.send(packageData('SET_TURN', { currentPlayer: GAME_STATE.currentPlayer }));
     }
 }
 
-function initGameUI() {
-    render();
-
-    updateTurnIndicator();
-    endTurnButton.style.display = 'none';
-    undoButton.style.display = 'none';
+function getMaxPlacableBlocks(hand) {
+    let maxBlocks = 0;
+    for(let shape of SHAPES) {
+        let shapeCount = hand.filter(b => b.shape === shape).length;
+        if(shapeCount > maxBlocks) {
+            maxBlocks = shapeCount;
+        }
+    }
+    for(let color of COLORS) {
+        let colorCount = hand.filter(b => b.color === color).length;
+        if(colorCount > maxBlocks) {
+            maxBlocks = colorCount;
+        }
+    }
+    console.log('Max placable blocks:', maxBlocks);
+    return maxBlocks;
 }
 
 function render() {
@@ -495,6 +567,10 @@ function render() {
 function showWinner(winnerName) {
     winnerIndicator.innerText = winnerName + ' Wins!';
     winnerIndicator.style.display = 'block';
+}
+
+function updateScore() {
+    scoreIndicator.innerHTML = `<span style="color: ${hexToCssColor(myColor())}">${myName}: ${GAME_STATE[myRole]}</span> | <span style="color: ${hexToCssColor(otherColor())}">${otherName}: ${GAME_STATE[otherRole]}</span>`;
 }
 
 function updateTurnIndicator() {
@@ -520,14 +596,31 @@ window.endTurn = function() {
     undoButton.style.display = 'none';
 
     drawBlocks();
+    remainingBlocksIndicator.innerText = GAME_STATE.bag.length + ' Blocks';
+    if(GAME_STATE.hand.length == 0) {
+        GAME_STATE[myRole] += 6;
+        updateScore();
+
+        const winnerName = GAME_STATE[myRole] > GAME_STATE[otherRole] ? myName : otherName;
+        conn.send(packageData('END_GAME', { winner: winnerName }));
+
+        undoButton.style.display = 'none';
+        endTurnButton.style.display = 'none';
+        endGameTimeout = setTimeout(() => {
+            back2Selection();
+        }, 5000);
+    }
 
     if(GAME_STATE.bagCache.length > 0) {
-        GAME_STATE.bag = GAME_STATE.bag.concat(GAME_STATE.bagCache);
+        for(let i = 0; i < GAME_STATE.bagCache.length; i++) {
+            const randomIndex = Math.floor(Math.random() * GAME_STATE.bag.length);
+            GAME_STATE.bag.splice(randomIndex, 0, GAME_STATE.bagCache[i]);
+        }
         GAME_STATE.bagCache = [];
     }
     GAME_STATE.movesThisTurn = [];
-
-    conn.send(packageData('END_TURN', { currentPlayer: GAME_STATE.currentPlayer }));
+    updateScore();
+    conn.send(packageData('END_TURN', { currentPlayer: GAME_STATE.currentPlayer, bag: GAME_STATE.bag }));
 }
 
 window.undo = function() {
@@ -553,6 +646,7 @@ window.undo = function() {
             boardGroup.remove(boardGroup.children.find(b => b.userData.id == lastMove.block.id));
             highlightPlane.visible = false;
             updateBoardSize();
+            conn.send(packageData('REMOVE_BLOCK', { block: lastMove.block, pos: lastMove.pos }));
         }
         if(lastMove.place == 'bag') {
             //Remove the block from the bag
@@ -568,7 +662,7 @@ window.undo = function() {
 }
 
 initScene();
-initLogic();
+if(myRole == 'main') {initLogic();}
 
 }
 
