@@ -36,7 +36,6 @@ let GAME_STATE = null;
 // Function to set up the peer connection
 function setupPeerConnection() {
     peer.on('open', (id) => {
-        console.log('My peer ID:');
         console.log(id);
     });
 

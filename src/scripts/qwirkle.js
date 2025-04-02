@@ -1,3 +1,5 @@
+function startQwirkle() {
+
 let scene, camera, renderer;
 let handGroup;
 let handPlane;
@@ -11,10 +13,9 @@ let selectedInState = null;
 let isRendering = true;
 let endGameTimeout;
 
-function startQwirkle() {
-
 const SHAPES = ['circle', 'square', 'diamond', 'leaf', 'star', 'cross'];
 const COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
+const hexDefenitions = {'red': '#C92121','orange': '#E27E25','yellow': '#ECDF4B','green': '#4FB543','blue': '#2D6ACC','purple': '#6D2B9A'};
 
 const currentPlayerIndicator = document.getElementById('current-player-indicator');
 const remainingBlocksIndicator = document.getElementById('remaining-blocks-indicator');
@@ -42,7 +43,7 @@ window.communication = function(command, args) {
             break;
         case 'UPDATE_BAG':
             GAME_STATE.bag = args.bag;
-            remainingBlocksIndicator.innerText = GAME_STATE.bag.length + ' Blocks';
+            remainingBlocksIndicator.innerText = GAME_STATE.bag.length + ' Blocks left';
             break;
         case 'SET_TURN':
             GAME_STATE.currentPlayer = args.currentPlayer;
@@ -58,7 +59,7 @@ window.communication = function(command, args) {
             GAME_STATE.currentPlayer = args.currentPlayer;
             GAME_STATE[otherRole] = args.score;
             GAME_STATE.bag = args.bag;
-            remainingBlocksIndicator.innerText = GAME_STATE.bag.length + ' Blocks';
+            remainingBlocksIndicator.innerText = GAME_STATE.bag.length + ' Blocks left';
             updateTurnIndicator();
             updateScore();
             break;
@@ -116,9 +117,16 @@ function cleanupScene(){
     if (scene) {
         scene.traverse(object => {
             if (object.geometry) object.geometry.dispose();
-            if (object.material) {
-                if (object.material.map) object.material.map.dispose();
-                object.material.dispose();
+            try {
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach(material => material.dispose());
+                    } else {
+                        object.material.dispose();
+                    }
+                }
+            } catch (e) {
+                //ignore errors related to material disposal
             }
         });
     }
@@ -127,6 +135,15 @@ function cleanupScene(){
     camera = null;
     renderer = null;
     handGroup = null;
+    handPlane = null;
+    boardGroup = null;
+    boardPlane = null;
+    bagPlane = null;
+    zoomValue = 0;
+    camPos = { x: 0, y: 10, z: 6 };
+    isPanning = false;
+    lastMousePosition = { x: 0, y: 0 };
+    selectedInState = null;
     selectedBlockObject = null;
     raycaster = null;
     mouse = null;
@@ -143,13 +160,14 @@ function createBlock(shape, color, id) {
         texture.magFilter = THREE.NearestFilter;
     });
 
+    const hexColor = hexDefenitions[color] || color;
     // Create materials for each face of the block
     const materials = [
         new THREE.MeshBasicMaterial({ color: 0x000000 }), // right
         new THREE.MeshBasicMaterial({ color: 0x000000 }), // left
         new THREE.MeshBasicMaterial({ color: 0x000000 }), // top
         new THREE.MeshBasicMaterial({ color: 0x000000 }), // bottom
-        new THREE.MeshBasicMaterial({ map: texture, color: color}), // back
+        new THREE.MeshBasicMaterial({ map: texture, color: hexColor }), // back
         new THREE.MeshBasicMaterial({ color: 0x000000 }) // front
     ];
 
@@ -618,6 +636,9 @@ function refreshHandPositions() {
 function drawBlocks(doublesAllowed = true) {
     for (let i = GAME_STATE.hand.length; i < 6; i++) {
         let drawnBlock = GAME_STATE.bag.pop();
+        if (!drawnBlock) {
+            break; // No more blocks to draw
+        }
 
         if(!doublesAllowed) {
             // Check if the block is already in hand
@@ -680,7 +701,7 @@ function initLogic(bag = null, maxPlacableBlocksofOther = 0) {
         const maxPlacableBlocks = getMaxPlacableBlocks(GAME_STATE.hand);
         conn.send(packageData('INIT_GAME', {bag: GAME_STATE.bag, maxPlacableBlocks: maxPlacableBlocks}));
     } else {
-        remainingBlocksIndicator.innerText = GAME_STATE.bag.length + ' Blocks';
+        remainingBlocksIndicator.innerText = GAME_STATE.bag.length + ' Blocks left';
         conn.send(packageData('UPDATE_BAG', { bag: GAME_STATE.bag }));
         const maxPlacableBlocks = getMaxPlacableBlocks(GAME_STATE.hand);
         if(maxPlacableBlocks > maxPlacableBlocksofOther) {
@@ -723,6 +744,7 @@ function render() {
 
 function showWinner(winnerName) {
     winnerIndicator.innerText = winnerName + ' Wins!';
+    winnerIndicator.style.color = hexToCssColor(GAME_STATE.currentPlayer == myRole ? mainColor : secondColor);
     winnerIndicator.style.display = 'block';
 }
 
@@ -754,7 +776,7 @@ window.endTurn = function() {
     undoButton.style.display = 'none';
 
     drawBlocks();
-    remainingBlocksIndicator.innerText = GAME_STATE.bag.length + ' Blocks';
+    remainingBlocksIndicator.innerText = GAME_STATE.bag.length + ' Blocks left';
     if(GAME_STATE.hand.length == 0) {
         GAME_STATE[myRole] += 6;
         updateScore();
@@ -762,6 +784,7 @@ window.endTurn = function() {
         const winnerName = GAME_STATE[myRole] > GAME_STATE[otherRole] ? myName : otherName;
         conn.send(packageData('END_GAME', { winner: winnerName }));
 
+        showWinner(winnerName);
         undoButton.style.display = 'none';
         endTurnButton.style.display = 'none';
         endGameTimeout = setTimeout(() => {
@@ -782,20 +805,18 @@ window.endTurn = function() {
         let lineDirection = [1, 0];
         const startPos = GAME_STATE.movesThisTurn[0].pos;
         for(let move of GAME_STATE.movesThisTurn) {
-            if(move.pos[0] !== startPos[0]) {
+            if(move.pos[1] !== startPos[1]) {
                 lineDirection = [0, 1];
                 break;
             }
         }
         // Calculate length of main line
         let lineScore = getLineScore(startPos, lineDirection);
-        console.log('Mainline score: ', lineScore, lineDirection);
         score += lineScore;
         //Calculate score for other lines
         lineDirection = [lineDirection[1], lineDirection[0]]; // Rotate 90 degrees
         for(let move of GAME_STATE.movesThisTurn) {
             lineScore = getLineScore(move.pos, lineDirection);
-            console.log('Line score: ', lineScore, lineDirection);
             score += lineScore;
         }
         console.log('Score this turn: ', score);
