@@ -56,6 +56,7 @@ window.communication = function(command, args) {
             break;
         case 'END_TURN':
             GAME_STATE.currentPlayer = args.currentPlayer;
+            GAME_STATE[otherRole] = args.score;
             GAME_STATE.bag = args.bag;
             remainingBlocksIndicator.innerText = GAME_STATE.bag.length + ' Blocks';
             updateTurnIndicator();
@@ -73,14 +74,14 @@ window.communication = function(command, args) {
 }
 
 function OtherPlacedBlock(block, pos) {
-    console.log('Placing block:', block, 'at position:', pos);
+    GAME_STATE.board[pos] = block;
     let newBlock = createBlock(block.shape, block.color, block.id);
     newBlock.position.set(pos[0], 22, pos[1]-10); // Start above the board
     newBlock.rotation.set(-Math.PI / 2, 0, 0); // Rotate to face up
-    new TWEEN.Tween(newBlock.position).to({ x: pos[0], y: 0.1, z: pos[1] }, 1000).easing(TWEEN.Easing.Quadratic.Out).start();
+    new TWEEN.Tween(newBlock.position).to({ x: pos[0], y: 0.1, z: pos[1] }, 1000).easing(TWEEN.Easing.Quadratic.Out).onComplete(() => {
+        updateBoardSize();
+    }).start();
     boardGroup.add(newBlock);
-    GAME_STATE.board[pos] = block;
-    updateBoardSize();
 }
 
 function RemoveBlock(block, pos) {
@@ -250,19 +251,19 @@ function onMouseDown(event) {
             selectedInState = null;
         } else if(selectedInState === 'board') {
             if(GAME_STATE.movesThisTurn.length > 0 && GAME_STATE.movesThisTurn[GAME_STATE.movesThisTurn.length - 1].place == 'bag') {
+                putBlockBack2Hand();
                 alert('Cannot place block on board after placing in bag');
                 return;
             }
 
             blockPos = [selectedBlockObject.position.clone().x, selectedBlockObject.position.clone().z];
-            if(checkValidMove(selectedBlockObject, blockPos)) {
-                let blockData = selectedBlockObject.userData;
+            let blockData = selectedBlockObject.userData;
+            if(checkValidMove(blockData, blockPos)) {
                 let blockID = GAME_STATE.hand.findIndex(b => b.id === blockData.id);
                 if(blockID >= 0) {
                     GAME_STATE.hand.splice(blockID, 1);
                     GAME_STATE.board[blockPos] = blockData;
                     GAME_STATE.movesThisTurn.push({place: 'board', block: blockData, pos: blockPos});
-                    console.log(GAME_STATE.movesThisTurn);
                 }
                 selectedBlockObject.position.y = 0.1; // Set the block on the board
                 selectedBlockObject = null;
@@ -276,9 +277,12 @@ function onMouseDown(event) {
                 undoButton.style.display = 'block';
 
                 conn.send(packageData('PLACE_BLOCK', { block: blockData, pos: blockPos }));
+            } else {
+                console.log('Invalid move!');
             }
         } else if(selectedInState === 'bag') {
             if(GAME_STATE.movesThisTurn.length > 0 && GAME_STATE.movesThisTurn[GAME_STATE.movesThisTurn.length - 1].place == 'board') {
+                putBlockBack2Hand();
                 alert('Cannot place block in bag after placing on board');
                 return;
             }
@@ -306,7 +310,140 @@ function onMouseDown(event) {
 function checkValidMove(block, position) {
     if(!block || !position) return false;
     if(GAME_STATE.board[position]) return false; //Occupied position
-    return true; // Placeholder for actual game logic
+
+    //Check in -x direction
+    let attribute = null;
+    let foundBlocks = [block];
+    let placedBlocksThisMove = GAME_STATE.movesThisTurn.map(b => b.block);
+    let offset = -1;
+    while(true) {
+        let checkPos = [position[0] + offset, position[1]];
+        let checkBlock = GAME_STATE.board[checkPos];
+        if(checkBlock) {
+            if(attribute == null) {
+                if(checkBlock.shape === block.shape && checkBlock.color === block.color) {
+                    return false; // Same block
+                } else if(checkBlock.shape === block.shape) {
+                    attribute = checkBlock.shape;
+                } else if(checkBlock.color === block.color) {
+                    attribute = checkBlock.color;
+                } else {
+                    return false; // Different shape and color
+                }
+            } else if((checkBlock.shape !== attribute && checkBlock.color !== attribute) || foundBlocks.find(b => b.shape === checkBlock.shape && b.color === checkBlock.color)) {
+                return false; // Different shape and color or block of this kind already in this line
+            }
+            foundBlocks.push(checkBlock);
+            if(placedBlocksThisMove.find(b => b.id === checkBlock.id)) {
+                placedBlocksThisMove.splice(placedBlocksThisMove.findIndex(b => b.id === checkBlock.id), 1);
+            }
+            offset--;
+        } else {
+            break;
+        }
+    }
+    //Check in +x direction
+    offset = 1;
+    while(true) {
+        let checkPos = [position[0] + offset, position[1]];
+        let checkBlock = GAME_STATE.board[checkPos];
+        if(checkBlock) {
+            if(attribute == null) {
+                if(checkBlock.shape === block.shape && checkBlock.color === block.color) {
+                    return false; // Same block
+                } else if(checkBlock.shape === block.shape) {
+                    attribute = checkBlock.shape;
+                } else if(checkBlock.color === block.color) {
+                    attribute = checkBlock.color;
+                } else {
+                    return false; // Different shape and color
+                }
+            } else if((checkBlock.shape !== attribute && checkBlock.color !== attribute) || foundBlocks.find(b => b.shape === checkBlock.shape && b.color === checkBlock.color)) {
+                return false; // Different shape and color or block of this kind already in this line
+            }
+            foundBlocks.push(checkBlock);
+            if(placedBlocksThisMove.find(b => b.id === checkBlock.id)) {
+                placedBlocksThisMove.splice(placedBlocksThisMove.findIndex(b => b.id === checkBlock.id), 1);
+            }
+            offset++;
+        } else {
+            break;
+        }
+    }
+    const anyBlockFoundInX = foundBlocks.length > 1 ? true : false;
+    if(placedBlocksThisMove.length !== 0 && placedBlocksThisMove.length !== GAME_STATE.movesThisTurn.length) {
+        return false; // Not all blocks placed this turn are in the same line
+    }
+
+    //Check in -z direction
+    attribute = null;
+    foundBlocks = [block];
+    offset = -1;
+    while(true) {
+        let checkPos = [position[0], position[1] + offset];
+        let checkBlock = GAME_STATE.board[checkPos];
+        if(checkBlock) {
+            if(attribute == null) {
+                if(checkBlock.shape === block.shape && checkBlock.color === block.color) {
+                    return false; // Same block
+                } else if(checkBlock.shape === block.shape) {
+                    attribute = checkBlock.shape;
+                } else if(checkBlock.color === block.color) {
+                    attribute = checkBlock.color;
+                } else {
+                    return false; // Different shape and color
+                }
+            } else if((checkBlock.shape !== attribute && checkBlock.color !== attribute) || foundBlocks.find(b => b.shape === checkBlock.shape && b.color === checkBlock.color)) {
+                return false; // Different shape and color or block of this kind already in this line
+            }
+            foundBlocks.push(checkBlock);
+            if(placedBlocksThisMove.find(b => b.id === checkBlock.id)) {
+                placedBlocksThisMove.splice(placedBlocksThisMove.findIndex(b => b.id === checkBlock.id), 1);
+            }
+            offset--;
+        } else {
+            break;
+        }
+    }
+    //Check in +z direction
+    offset = 1;
+    while(true) {
+        let checkPos = [position[0], position[1] + offset];
+        let checkBlock = GAME_STATE.board[checkPos];
+        if(checkBlock) {
+            if(attribute == null) {
+                if(checkBlock.shape === block.shape && checkBlock.color === block.color) {
+                    return false; // Same block
+                } else if(checkBlock.shape === block.shape) {
+                    attribute = checkBlock.shape;
+                } else if(checkBlock.color === block.color) {
+                    attribute = checkBlock.color;
+                } else {
+                    return false; // Different shape and color
+                }
+            } else if((checkBlock.shape !== attribute && checkBlock.color !== attribute) || foundBlocks.find(b => b.shape === checkBlock.shape && b.color === checkBlock.color)) {
+                return false; // Different shape and color or block of this kind already in this line
+            }
+            foundBlocks.push(checkBlock);
+            if(placedBlocksThisMove.find(b => b.id === checkBlock.id)) {
+                placedBlocksThisMove.splice(placedBlocksThisMove.findIndex(b => b.id === checkBlock.id), 1);
+            }
+            offset++;
+        } else {
+            break;
+        }
+    }
+
+    if(!anyBlockFoundInX && foundBlocks.length == 1 && Object.keys(GAME_STATE.board).length > 0) {
+        //No blocks found!
+        return false;
+    }
+
+    if(placedBlocksThisMove.length !== 0) {
+        return false; // Not in the line of the other blocks
+    }
+
+    return true;
 }
 
 function onMouseMove(event) {
@@ -372,6 +509,18 @@ function onMouseMove(event) {
     }
 }
 
+function putBlockBack2Hand() {
+    if(selectedBlockObject) {
+        highlightPlane.visible = false;
+        selectedInState = null;
+        handGroup.add(selectedBlockObject);
+        selectedBlockObject.rotation.set(0, 0, 0); // Reset rotation
+        selectedBlockObject.position.set(0, 0, 0); // Reset position
+        selectedBlockObject = null;
+        refreshHandPositions();
+    }
+}       
+
 function onMouseUp(event) {
     event.preventDefault();
     isPanning = false;  
@@ -394,26 +543,36 @@ function updateBoardSize() {
         let x = parseInt(pos[0]);
         let z = parseInt(pos[1]);
 
-        if (x-1 < minX) minX = x-1;
-        if (z-1 < minZ) minZ = z-1;
-        if (x+1 > maxX) maxX = x+1;
-        if (z+1 > maxZ) maxZ = z+1;
+        if (x - 1 < minX) minX = x - 1;
+        if (z - 1 < minZ) minZ = z - 1;
+        if (x + 1 > maxX) maxX = x + 1;
+        if (z + 1 > maxZ) maxZ = z + 1;
     }
+
     const width = maxX - minX + 1;
     const height = maxZ - minZ + 1;
-    console.log('Board size:', width, height);
-    const boardGeometry = new THREE.PlaneGeometry(width, height);
-    const boardTexture = new THREE.TextureLoader().load('qwirkleShapes/board.png', function (texture) {
+
+    // Create new geometry and texture
+    const newBoardGeometry = new THREE.PlaneGeometry(width, height);
+    const newBoardTexture = new THREE.TextureLoader().load('qwirkleShapes/board.png', function (texture) {
         texture.wrapS = THREE.RepeatWrapping; // Enable horizontal tiling
         texture.wrapT = THREE.RepeatWrapping; // Enable vertical tiling
         texture.repeat.set(width, height); // Tile the texture based on the board size
     });
-    boardPlane.geometry.dispose(); // Dispose of the old geometry
-    boardPlane.geometry = boardGeometry;
-    boardPlane.material.map.dispose(); // Dispose of the old texture
-    boardPlane.material.map = boardTexture; // Set the new texture
 
-    boardPlane.position.set((minX + maxX) / 2, 0, (minZ + maxZ) / 2); // Center the board
+    // Create a new material with the updated texture
+    const newBoardMaterial = new THREE.MeshBasicMaterial({ map: newBoardTexture, side: THREE.DoubleSide });
+
+    // Create a new mesh with the updated geometry and material
+    const newBoardPlane = new THREE.Mesh(newBoardGeometry, newBoardMaterial);
+    newBoardPlane.name = 'boardPlane';
+    newBoardPlane.rotation.x = -Math.PI / 2; // Rotate to be horizontal
+    newBoardPlane.position.set((minX + maxX) / 2, 0, (minZ + maxZ) / 2); // Center the board
+
+    // Replace the old boardPlane with the new one
+    boardGroup.remove(boardPlane); // Remove the old boardPlane
+    boardGroup.add(newBoardPlane); // Add the new boardPlane
+    boardPlane = newBoardPlane; // Update the reference
 }
 
 function refreshHandPositions() {
@@ -510,7 +669,6 @@ function initLogic(bag = null, maxPlacableBlocksofOther = 0) {
     }
 
     drawBlocks(false);
-    console.log(GAME_STATE.hand);
 
     render();
 
@@ -551,7 +709,6 @@ function getMaxPlacableBlocks(hand) {
             maxBlocks = colorCount;
         }
     }
-    console.log('Max placable blocks:', maxBlocks);
     return maxBlocks;
 }
 
@@ -586,6 +743,7 @@ function updateTurnIndicator() {
 }
 
 window.endTurn = function() {
+    putBlockBack2Hand();
     if(GAME_STATE.currentPlayer !== myRole) {
         return;
     }
@@ -617,13 +775,70 @@ window.endTurn = function() {
             GAME_STATE.bag.splice(randomIndex, 0, GAME_STATE.bagCache[i]);
         }
         GAME_STATE.bagCache = [];
+    } else {
+        //Placed blocks on board -> Calculate score
+        let score = 0;
+        // Get main line direction
+        let lineDirection = [1, 0];
+        const startPos = GAME_STATE.movesThisTurn[0].pos;
+        for(let move of GAME_STATE.movesThisTurn) {
+            if(move.pos[0] !== startPos[0]) {
+                lineDirection = [0, 1];
+                break;
+            }
+        }
+        // Calculate length of main line
+        let lineScore = getLineScore(startPos, lineDirection);
+        console.log('Mainline score: ', lineScore, lineDirection);
+        score += lineScore;
+        //Calculate score for other lines
+        lineDirection = [lineDirection[1], lineDirection[0]]; // Rotate 90 degrees
+        for(let move of GAME_STATE.movesThisTurn) {
+            lineScore = getLineScore(move.pos, lineDirection);
+            console.log('Line score: ', lineScore, lineDirection);
+            score += lineScore;
+        }
+        console.log('Score this turn: ', score);
+        GAME_STATE[myRole] += score;
+        updateScore();
     }
+
     GAME_STATE.movesThisTurn = [];
-    updateScore();
-    conn.send(packageData('END_TURN', { currentPlayer: GAME_STATE.currentPlayer, bag: GAME_STATE.bag }));
+    conn.send(packageData('END_TURN', { currentPlayer: GAME_STATE.currentPlayer, bag: GAME_STATE.bag, score: GAME_STATE[myRole] }));
+}
+
+function getLineScore(startpos, direction) {
+    let lineLength = 1;
+    let i = 1;
+    while(true) {
+        const checkPos = [startpos[0] - direction[0] * i, startpos[1] - direction[1] * i];
+        if(GAME_STATE.board[checkPos]) {
+            lineLength++;
+        } else {
+            break;
+        }
+        i++;
+    }
+    i = 1;
+    while(true) {
+        const checkPos = [startpos[0] + direction[0] * i, startpos[1] + direction[1] * i];
+        if(GAME_STATE.board[checkPos]) {
+            lineLength++;
+        } else {
+            break;
+        }
+        i++;
+    }
+    if(lineLength == 1) {
+        return 0; // No score for single block
+    } else if(lineLength == 6) {
+        return 12; // Qwirkle!
+    }
+    return lineLength;
 }
 
 window.undo = function() {
+    putBlockBack2Hand();
     if(GAME_STATE.currentPlayer !== myRole) {
         return;
     }

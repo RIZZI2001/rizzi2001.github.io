@@ -34,8 +34,8 @@ function copyOwnId() {
 }
 
 function connect2peer() {
-    if(peerIdInput.value === '') {
-        alert('Please enter a peer ID');
+    if(peerIdInput.value === '' || peerIdInput.value === peer.id) {
+        alert('Please enter a valid peer ID (and not your own)');
         return;
     }
     if(initSent) {
