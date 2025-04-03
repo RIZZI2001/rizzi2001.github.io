@@ -204,14 +204,40 @@ function onMouseDown(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(handGroup.children);
+    if (selectedCard) {
+        // Check for intersection with stacks
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects([myDownStack.children[myDownStack.children.length-1], myUpStack.children[myUpStack.children.length-1], otherDownStack.children[otherDownStack.children.length-1], otherUpStack.children[otherUpStack.children.length-1]]);
+        if (intersects.length > 0) {
+            const stack = intersects[0].object.parent;
+            console.log(stack);
+            if (stack == myDownStack && (selectedCard.name < GAME_STATE[myRole].downStack.value || selectedCard.name == GAME_STATE[myRole].downStack.value + 10)) {
+                placeCard(selectedCard.name, 'downStack', myRole, myRole);
+            } else if (stack == myUpStack && (selectedCard.name > GAME_STATE[myRole].upStack.value || selectedCard.name == GAME_STATE[myRole].upStack.value - 10)) {
+                placeCard(selectedCard.name, 'upStack', myRole, myRole);
+            } else if (stack == otherDownStack && selectedCard.name > GAME_STATE[otherRole].downStack.value && !GAME_STATE.unlockedRefill ) {
+                placeCard(selectedCard.name, 'downStack', otherRole, myRole);
+                GAME_STATE.unlockedRefill = true;
+            } else if (stack == otherUpStack && selectedCard.name < GAME_STATE[otherRole].upStack.value && !GAME_STATE.unlockedRefill) {
+                placeCard(selectedCard.name, 'upStack', otherRole, myRole);
+                GAME_STATE.unlockedRefill = true;
+            } else {
+                refreshHandPositions();
+            }
+        } else {
+            refreshHandPositions();
+        }
+        selectedCard = null;
+    }   else {
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(handGroup.children);
 
-    if (intersects.length > 0) {
-        selectedCard = intersects[0].object;
-        const intersectsPlane = raycaster.intersectObject(selectedCard);
-        if (intersectsPlane.length > 0) {
-            offset.copy(intersectsPlane[0].point).sub(selectedCard.position);
+        if (intersects.length > 0) {
+            selectedCard = intersects[0].object;
+            const intersectsPlane = raycaster.intersectObject(selectedCard);
+            if (intersectsPlane.length > 0) {
+                offset.copy(intersectsPlane[0].point).sub(selectedCard.position);
+            }
         }
     }
 }
@@ -237,33 +263,7 @@ function onMouseMove(event) {
 }
 
 function onMouseUp(event) {
-    event.preventDefault();
-
-    if (selectedCard) {
-        // Check for intersection with stacks
-        raycaster.setFromCamera(mouse, camera);
-        const intersects = raycaster.intersectObjects([myDownStack.children[myDownStack.children.length-1], myUpStack.children[myUpStack.children.length-1], otherDownStack.children[otherDownStack.children.length-1], otherUpStack.children[otherUpStack.children.length-1]]);
-        if (intersects.length > 0) {
-            const stack = intersects[0].object.parent;
-            console.log(stack);
-            if (stack == myDownStack && (selectedCard.name < GAME_STATE[myRole].downStack.value || selectedCard.name == GAME_STATE[myRole].downStack.value + 10)) {
-                placeCard(selectedCard.name, 'downStack', myRole, myRole);
-            } else if (stack == myUpStack && (selectedCard.name > GAME_STATE[myRole].upStack.value || selectedCard.name == GAME_STATE[myRole].upStack.value - 10)) {
-                placeCard(selectedCard.name, 'upStack', myRole, myRole);
-            } else if (stack == otherDownStack && selectedCard.name > GAME_STATE[otherRole].downStack.value && !GAME_STATE.unlockedRefill ) {
-                placeCard(selectedCard.name, 'downStack', otherRole, myRole);
-                GAME_STATE.unlockedRefill = true;
-            } else if (stack == otherUpStack && selectedCard.name < GAME_STATE[otherRole].upStack.value && !GAME_STATE.unlockedRefill) {
-                placeCard(selectedCard.name, 'upStack', otherRole, myRole);
-                GAME_STATE.unlockedRefill = true;
-            } else {
-                refreshHandPositions();
-            }
-        } else {
-            refreshHandPositions();
-        }
-        selectedCard = null;
-    }       
+    event.preventDefault();    
 }
 
 function setStackCard(stack, value, color, animate = null, undo = false) {

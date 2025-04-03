@@ -5,6 +5,8 @@ let handGroup;
 let handPlane;
 let boardGroup;
 let boardPlane;
+let halos = [];
+let oldBoardSize = {width: 3, height: 3};
 let bagPlane;
 let raycaster, mouse;
 let zoomValue = 0, camPos = { x: 0, y: 10, z: 6 };
@@ -81,6 +83,7 @@ function OtherPlacedBlock(block, pos) {
     newBlock.rotation.set(-Math.PI / 2, 0, 0); // Rotate to face up
     new TWEEN.Tween(newBlock.position).to({ x: pos[0], y: 0.1, z: pos[1] }, 1000).easing(TWEEN.Easing.Quadratic.Out).onComplete(() => {
         updateBoardSize();
+        placeHalo(pos);
     }).start();
     boardGroup.add(newBlock);
 }
@@ -89,6 +92,11 @@ function RemoveBlock(block, pos) {
     const blockToRemove = boardGroup.children.find(b => b.userData.id == block.id);
     if (blockToRemove) {
         delete GAME_STATE.board[pos];
+        const haloToRemove = halos.find(h => h.position.x == pos[0] && h.position.z == pos[1]);
+        if (haloToRemove) {
+            boardGroup.remove(haloToRemove);
+            halos.splice(halos.indexOf(haloToRemove), 1);
+        }
         new TWEEN.Tween(blockToRemove.position).to({ x: pos[0], y: 22, z: pos[1]-10 }, 1000).easing(TWEEN.Easing.Quadratic.Out).onComplete(() => {
             boardGroup.remove(blockToRemove);
             updateBoardSize();
@@ -138,6 +146,8 @@ function cleanupScene(){
     handPlane = null;
     boardGroup = null;
     boardPlane = null;
+    halos = null;
+    oldBoardSize = null;
     bagPlane = null;
     zoomValue = 0;
     camPos = { x: 0, y: 10, z: 6 };
@@ -176,6 +186,18 @@ function createBlock(shape, color, id) {
     block.name = shape + ' ' + color + ' ' + id;
 
     return block;
+}
+
+function placeHalo(pos) {
+    const loader = new THREE.TextureLoader();
+    const haloTexture = loader.load('qwirkleShapes/halo.png');
+    const haloMaterial = new THREE.MeshBasicMaterial({ map: haloTexture, transparent: true });
+    halo = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), haloMaterial);
+    halo.rotation.x = -Math.PI / 2; // Align with the board
+    halo.position.set(pos[0], 0.21, pos[1]); // Slightly above the block
+    halo.name = 'halo';
+    boardGroup.add(halo);
+    halos.push(halo);
 }
 
 function initScene() {
@@ -570,6 +592,13 @@ function updateBoardSize() {
     const width = maxX - minX + 1;
     const height = maxZ - minZ + 1;
 
+    if (width === oldBoardSize.width && height === oldBoardSize.height) {
+        return; // No change in size
+    }
+
+    oldBoardSize.width = width;
+    oldBoardSize.height = height;
+
     // Create new geometry and texture
     const newBoardGeometry = new THREE.PlaneGeometry(width, height);
     const newBoardTexture = new THREE.TextureLoader().load('qwirkleShapes/board.png', function (texture) {
@@ -756,10 +785,10 @@ function updateTurnIndicator() {
     currentPlayerIndicator.innerText = GAME_STATE.currentPlayer == myRole ? 'Your Turn' : otherName + "'s Turn";
 
     if (GAME_STATE.currentPlayer === 'main') {
-        scene.background = new THREE.Color(mainColorDark);
+        scene.background = new THREE.Color(mainColorSemiDark);
         currentPlayerIndicator.style.color = hexToCssColor(mainColor);
     } else {
-        scene.background = new THREE.Color(secondColorDark);
+        scene.background = new THREE.Color(secondColorSemiDark);
         currentPlayerIndicator.style.color = hexToCssColor(secondColor);
     }
 }
@@ -769,6 +798,12 @@ window.endTurn = function() {
     if(GAME_STATE.currentPlayer !== myRole) {
         return;
     }
+
+    //remove all halos
+    for(let halo of halos) {
+        boardGroup.remove(halo);
+    }
+    halos = [];
 
     GAME_STATE.currentPlayer = GAME_STATE.currentPlayer == 'main' ? 'second' : 'main';
     updateTurnIndicator();
