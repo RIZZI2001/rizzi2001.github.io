@@ -63,14 +63,14 @@ window.communication = function(command, args) {
                 const Card = MyCards.children.find(c => c.userData.id == id);
                 new TWEEN.Tween(Card.rotation).to({ y: 0 }, 500).start();
             }
-            if(mySum < otherSum) {
-                winnerName = myName;
-                winnerSum = mySum;
-                loserSum = otherSum;
-            } else {
+            if(otherSum < mySum) {
                 winnerName = otherName;
                 winnerSum = otherSum;
                 loserSum = mySum;
+            } else {
+                winnerName = myName;
+                winnerSum = mySum;
+                loserSum = otherSum * 2;
             }
             showRoundWinner(winnerName, winnerSum, loserSum);
             conn.send(packageData('SHOW_ROUND_WINNER', { winner: winnerName, winnerSum: winnerSum, loserSum: loserSum }));
@@ -425,6 +425,7 @@ function onMouseDown(event) {
             conn.send(packageData('ACTION', { type: 'putDown', pos: null }));
             OpenCardStack.add(SelectedCardObject);
             SelectedCardObject.position.set(0, 0, 0.01);
+            SelectedCardObject.rotation.z = Math.PI / 2; //////
             SelectedCardObject = null;
             GAME_STATE.openCardStack.push(selectedCard);
             shiftOpenCardStack();
@@ -445,13 +446,15 @@ function onMouseDown(event) {
             if(index >= 0 && !GAME_STATE[myRole][index].open) {
                 GAME_STATE[myRole][index].open = true;
                 new TWEEN.Tween(Card.rotation).to({ y: 0 }, 500).start();
-                turnState = null;
-                checkColumn(index % 4);
-                if(!check4RoundEnd()) {
-                    GAME_STATE.currentPlayer = GAME_STATE.currentPlayer == 'main' ? 'second' : 'main';
-                    updateTurnIndicator();
-                    conn.send(packageData('END_TURN', { currentPlayer: GAME_STATE.currentPlayer }));
-                }
+                setTimeout(() => {
+                    turnState = null;
+                    checkColumn(index % 4);
+                    if(!check4RoundEnd()) {
+                        GAME_STATE.currentPlayer = GAME_STATE.currentPlayer == 'main' ? 'second' : 'main';
+                        updateTurnIndicator();
+                        conn.send(packageData('END_TURN', { currentPlayer: GAME_STATE.currentPlayer }));
+                    }
+                }, 1000);
             }
         }
     } else if(turnState == 'flip2' || turnState == 'flip1') {
@@ -509,8 +512,8 @@ function shiftOpenCardStack() {
     console.log('Length: ', GAME_STATE.openCardStack.length, GAME_STATE.openCardStack[0].id, GAME_STATE.openCardStack[0].value);
 }
 
-function swap(intersects, type) {
-    if(!intersects[0]) return;
+async function swap(intersects, type) {
+    if (!intersects[0]) return;
     const Card = intersects[0].object.parent;
     const card = GAME_STATE[myRole].find(c => c.id == Card.userData.id);
 
@@ -526,31 +529,24 @@ function swap(intersects, type) {
 
     Card.position.z = 1;
     new TWEEN.Tween(Card.position).to({ x: Card.position.x, y: Card.position.y + 3, z: 1 }, 500)
-        .onComplete(() => {
-            if(!card.open) {
-                card.open = true;
-                new TWEEN.Tween(Card.rotation).to({ y: 0 }, 500)
-                    .onComplete(() => {
-                        setTimeout(() => {
-                            moveCardToOpenStack(Card);
-                        }, 1000);
-                        
-                    })
-                    .start();
-            } else {
-                moveCardToOpenStack(Card);
-            }
-        })
-        .start();
-    
-    turnState = null;
-    checkColumn(index % 4);
-    if(!check4RoundEnd()) {
-        GAME_STATE.currentPlayer = GAME_STATE.currentPlayer == 'main' ? 'second' : 'main';
-        updateTurnIndicator();
-        conn.send(packageData('END_TURN', { currentPlayer: GAME_STATE.currentPlayer }));
-    }
-    //console.log(GAME_STATE.openCardStack, GAME_STATE[myRole]);
+    .onComplete(async () => {
+        if (!card.open) {
+            card.open = true;
+            await new TWEEN.Tween(Card.rotation).to({ y: 0 }, 500).start();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await moveCardToOpenStack(Card);
+        } else {
+            await moveCardToOpenStack(Card);
+        }
+        turnState = null;
+        checkColumn(index % 4);
+        if (!check4RoundEnd()) {
+            GAME_STATE.currentPlayer = GAME_STATE.currentPlayer == 'main' ? 'second' : 'main';
+            updateTurnIndicator();
+            conn.send(packageData('END_TURN', { currentPlayer: GAME_STATE.currentPlayer }));
+        }
+    })
+    .start();
 }
 
 function checkColumn(column) {
@@ -579,24 +575,27 @@ function check4RoundEnd() {
 }
 
 function moveCardToOpenStack(Card, inverted = false) {
-    const globalPos = Card.getWorldPosition(new THREE.Vector3());
-    const relativePos = OpenCardStack.worldToLocal(globalPos);
-    Card.position.set(relativePos.x, relativePos.y, 1);
-    if(inverted) {
-        Card.rotation.z = Math.PI / 2;
-    } else {
-        Card.rotation.z = - Math.PI / 2;
-    }
-    OpenCardStack.add(Card);
+    return new Promise((resolve) => {
+        const globalPos = Card.getWorldPosition(new THREE.Vector3());
+        const relativePos = OpenCardStack.worldToLocal(globalPos);
+        Card.position.set(relativePos.x, relativePos.y, 1);
+        if(inverted) {
+            Card.rotation.z = Math.PI / 2;
+        } else {
+            Card.rotation.z = - Math.PI / 2;
+        }
+        OpenCardStack.add(Card);
 
-    new TWEEN.Tween(Card.position).to({ x: 0, y: 0, z: 0.01 }, 500).start();
-    new TWEEN.Tween(Card.rotation).to({ x: 0, y: 0, z: 0 }, 500)
-        .onComplete(() => {
-            shiftOpenCardStack();
-            //Unblock
-            if(inverted) turnState = null;
-        })
-        .start();
+        new TWEEN.Tween(Card.position).to({ x: 0, y: 0, z: 0.01 }, 500).start();
+        new TWEEN.Tween(Card.rotation).to({ x: 0, y: 0, z: 0 }, 500)
+            .onComplete(() => {
+                shiftOpenCardStack();
+                //Unblock
+                if(inverted) turnState = null;
+                resolve();
+            })
+            .start();
+    });
 }
 
 function onMouseMove(event) {
@@ -795,6 +794,8 @@ function cleanupRound() {
 
     //set timeout for 1 second
     setTimeout(() => {
+        otherSum = null;
+        turnState = null;
         currentPlayerIndicator.style.color = 'white';
 
         if(myRole == 'main') {
