@@ -424,13 +424,18 @@ function onMouseDown(event) {
             //PUT DOWN
             conn.send(packageData('ACTION', { type: 'putDown', pos: null }));
             OpenCardStack.add(SelectedCardObject);
-            SelectedCardObject.position.set(0, 0, 0.01);
-            SelectedCardObject.rotation.z = Math.PI / 2; //////
-            SelectedCardObject = null;
-            GAME_STATE.openCardStack.push(selectedCard);
-            shiftOpenCardStack();
-            selectedCard = null;
-            turnState = 'putDown';
+            SelectedCardObject.position.set(0, 0, 0.02);
+            SelectedCardObject.rotation.z = - Math.PI / 2;
+            new TWEEN.Tween(SelectedCardObject.rotation).to({ x: 0, y: 0, z: 0 }, 500).
+                onComplete(() => {
+                    SelectedCardObject = null;
+                    GAME_STATE.openCardStack.push(selectedCard);
+                    SelectedCardObject.position.set(0, 0, 0.01);
+                    shiftOpenCardStack();
+                    selectedCard = null;
+                    turnState = 'putDown';
+                }
+            ).start();
         } else if(intersect == 'myCards') {
             //SWAP
             swap(intersects, 'swapStack');
