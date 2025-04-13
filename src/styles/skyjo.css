@@ -25,9 +25,6 @@ button {
 #current-player-indicator {
     margin-bottom: 10px;
 }
-#remaining-cards-indicator {
-    margin-bottom: 10px;
-}
 #horiz-button-container {
     display: flex;
     justify-content: flex-start;
@@ -39,17 +36,30 @@ button {
 #back-button:hover {
     background-color: #29292c;
 }
-#undo-button {
-    background-color: #09090a;
+#score-table {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background-color: rgba(206, 206, 206, 0.9);
+    border-radius: 5px;
+    padding: 10px;
+    z-index: 1000;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
-#undo-button:hover {
-    background-color: #29292c;
+#score-table table {
+    width: 100%;
+    border-collapse: collapse;
 }
-#end-turn-button {
-    background-color: #218838;
+#score-table th, #score-table td {
+    text-align: center;
+    padding: 5px;
+    background-color: #f4f4f4;
+    color: #333;
 }
-#end-turn-button:hover {
-    background-color: #28a745;
+#score-table th {
+    font-weight: bold;
 }
 #winner-indicator {
     display: none;

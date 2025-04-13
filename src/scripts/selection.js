@@ -12,6 +12,11 @@
             image: 'qwirkle.png',
             link: 'qwirkle'
         },
+        {
+            title: 'Skyjo',
+            image: 'skyjo.png',
+            link: 'skyjo'
+        }
     ];
 
     selectedGame = {

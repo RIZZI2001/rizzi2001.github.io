@@ -125,15 +125,16 @@ function handleData(data) {
     }
 }
 
+setupPeerConnection();
+
 let baseUrl;
 if(window.location.href.includes('github')) {
-    setupPeerConnection();
     baseUrl = 'https://rizzi2001.github.io/src/';
     switch2('connection');
 } else {
     baseUrl = 'http://localhost:8000/src/';
-    //switch2('connection');
-    switch2('skyjo');
+    switch2('connection');
+    //switch2('skyjo');
     myRole = 'main';
     myName = 'Player 1';
     otherRole = 'second';
