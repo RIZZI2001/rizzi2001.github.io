@@ -284,7 +284,7 @@ function action(type, pos) {
             const relativePos = OtherCards.worldToLocal(globalPos);
             Card3.position.set(relativePos.x, relativePos.y, 0.01);
             Card3.rotation.y = Math.PI;
-            Card3.rotation.z = Math.PI / 2;
+            Card3.rotation.z = - Math.PI / 2;
             OtherCards.add(Card3);
             const targetPos = [pos % 4 * 2 - 3, Math.floor(pos / 4) * 3 - 5];
             new TWEEN.Tween(Card3.position).to({ x: relativePos.x, y: relativePos.y, z: 1.5 }, 200)
@@ -322,7 +322,7 @@ function action(type, pos) {
             const Card5 = OpenCardStack.children[1];
             OpenCardStack.remove(Card5);
             Card5.rotation.y = 0;
-            Card5.rotation.z = Math.PI / 2;
+            Card5.rotation.z = - Math.PI / 2;
             const globalPos2 = OpenCardStack.getWorldPosition(new THREE.Vector3());
             const relativePos2 = OtherCards.worldToLocal(globalPos2);
             Card5.position.set(relativePos2.x, relativePos2.y, 0.01);
@@ -423,14 +423,18 @@ function onMouseDown(event) {
         if(intersect == 'openCardStack') {
             //PUT DOWN
             conn.send(packageData('ACTION', { type: 'putDown', pos: null }));
-            OpenCardStack.add(SelectedCardObject);
+            GAME_STATE.openCardStack.push(selectedCard);
             SelectedCardObject.position.set(0, 0, 0.02);
-            SelectedCardObject.rotation.z = - Math.PI / 2;
-            new TWEEN.Tween(SelectedCardObject.rotation).to({ x: 0, y: 0, z: 0 }, 500).
-                onComplete(() => {
-                    GAME_STATE.openCardStack.push(selectedCard);
-                    SelectedCardObject.position.set(0, 0, 0.01);
-                    SelectedCardObject = null;
+            SelectedCardObject.rotation.set(0, 0, -Math.PI / 2);
+            OpenCardStack.add(SelectedCardObject);
+            const CardToAnimate = SelectedCardObject;
+            SelectedCardObject = null;
+            new TWEEN.Tween(CardToAnimate.rotation).to({ x: 0, y: 0, z: 0 }, 500)
+                .onStart(() => {
+                    CardToAnimate.position.set(0, 0, 0.02);
+                })    
+                .onComplete(() => {
+                    CardToAnimate.position.set(0, 0, 0.01);
                     shiftOpenCardStack();
                     selectedCard = null;
                     turnState = 'putDown';
@@ -575,6 +579,13 @@ function check4RoundEnd() {
     if(GAME_STATE[myRole].every(c => c.open)) {
         const sum = GAME_STATE[myRole].reduce((acc, c) => acc + c.value, 0);
         conn.send(packageData('END_ROUND', { sum: sum }));
+        for(let i = 0; i < GAME_STATE[otherRole].length; i++) {
+            GAME_STATE[otherRole][i].open = true;
+            const id = GAME_STATE[otherRole][i].id;
+            if(id == -1) continue;
+            const Card = OtherCards.children.find(c => c.userData.id == id);
+            new TWEEN.Tween(Card.rotation).to({ y: 0 }, 500).start();
+        }
         return true;
     }
 }
