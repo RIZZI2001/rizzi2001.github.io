@@ -428,9 +428,9 @@ function onMouseDown(event) {
             SelectedCardObject.rotation.z = - Math.PI / 2;
             new TWEEN.Tween(SelectedCardObject.rotation).to({ x: 0, y: 0, z: 0 }, 500).
                 onComplete(() => {
-                    SelectedCardObject = null;
                     GAME_STATE.openCardStack.push(selectedCard);
                     SelectedCardObject.position.set(0, 0, 0.01);
+                    SelectedCardObject = null;
                     shiftOpenCardStack();
                     selectedCard = null;
                     turnState = 'putDown';
