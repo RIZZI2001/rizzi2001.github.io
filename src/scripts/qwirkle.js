@@ -321,9 +321,8 @@ function onMouseDown(event) {
                 console.log('Invalid move!');
             }
         } else if(selectedInState === 'bag') {
-            if(GAME_STATE.movesThisTurn.length > 0 && GAME_STATE.movesThisTurn[GAME_STATE.movesThisTurn.length - 1].place == 'board') {
+            if((GAME_STATE.movesThisTurn.length > 0 && GAME_STATE.movesThisTurn[GAME_STATE.movesThisTurn.length - 1].place == 'board') || (GAME_STATE.bag.length - GAME_STATE.bagCache.length) <= 0) {
                 putBlockBack2Hand();
-                alert('Cannot place block in bag after placing on board');
                 return;
             }
 

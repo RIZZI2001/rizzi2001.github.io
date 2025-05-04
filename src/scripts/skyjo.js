@@ -438,6 +438,7 @@ function onMouseDown(event) {
                     shiftOpenCardStack();
                     selectedCard = null;
                     turnState = 'putDown';
+                    console.log('THIS SHOULD PRINT! ', turnState, selectedCard);
                 }
             ).start();
         } else if(intersect == 'myCards') {
