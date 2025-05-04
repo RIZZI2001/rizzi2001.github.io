@@ -1,5 +1,6 @@
 (function() {
     const gridContainer = document.querySelector('.grid-container');
+    const selectionHeader = document.getElementById('selection-header');
 
     const gameList = [
         {
@@ -25,6 +26,29 @@
     };
 
     let gridIsInitialized = false;
+
+    const setHeader = () => {
+        console.log('setHeader');
+        if (!selectionHeader) return;
+        const myNameDiv = document.createElement('div');
+        myNameDiv.classList.add('name-display');
+        myNameDiv.textContent = myName;
+        myNameDiv.style.border = `5px solid ${hexToCssColor(myColor())}`;
+        selectionHeader.appendChild(myNameDiv);
+
+        //vs text
+        const vsText = document.createElement('div');
+        vsText.classList.add('vs-text');
+        vsText.textContent = 'vs';
+        selectionHeader.appendChild(vsText);
+
+        const otherNameDiv = document.createElement('div');
+        otherNameDiv.classList.add('name-display');
+        otherNameDiv.textContent = otherName;
+        otherNameDiv.style.border = `5px solid ${hexToCssColor(otherColor())}`;
+        selectionHeader.appendChild(otherNameDiv);
+    }
+
 
     const initializeGrid = () => {
         console.log('initializeGrid');
@@ -87,5 +111,6 @@
         return `#${((1 << 24) + (parseInt(rgbValues[0]) << 16) + (parseInt(rgbValues[1]) << 8) + parseInt(rgbValues[2])).toString(16).slice(1)}`;
     };
 
+    setHeader();
     initializeGrid();
 })();

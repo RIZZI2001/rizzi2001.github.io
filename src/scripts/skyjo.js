@@ -510,9 +510,6 @@ function setTurn(sum) {
 function shiftOpenCardStack() {
     if(GAME_STATE.openCardStack.length > 1) {
         const firstCard = GAME_STATE.openCardStack[0];
-        console.log('First Card: ', firstCard.id, firstCard.value);
-        console.log('openCardStack: ', GAME_STATE.openCardStack[0].value, GAME_STATE.openCardStack[1].value);
-        console.log('OpenCardStack: ', OpenCardStack.children[0].name, OpenCardStack.children[0].userData.id, OpenCardStack.children[1].name, OpenCardStack.children[1].userData.id);
         const cardToRemove = OpenCardStack.children.find(c => c.userData.id == firstCard.id);
         if (cardToRemove) {
             OpenCardStack.remove(cardToRemove);
@@ -795,6 +792,7 @@ function showRoundWinner(winnerName, winnerScore, loserScore) {
 }
 
 function cleanupRound() {
+    console.log('Cleanup Round');
     // Remove all cards from the scene
     while (MyCards.children.length > 0) {
         MyCards.remove(MyCards.children[0]);

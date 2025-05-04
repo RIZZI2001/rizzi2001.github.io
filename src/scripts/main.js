@@ -18,7 +18,7 @@ const mainColor = 0x83d684;
 const secondColor = 0xde6666;
 
 const mainColorSemiDark = 0x4c7a4c;
-const secondColorSemiDark = 0x9e3232;
+const secondColorSemiDark = 0x7a3838;
 
 const mainColorDark = 0x1a3a1a;
 const secondColorDark = 0x3a1a1a;
@@ -134,7 +134,7 @@ if(window.location.href.includes('github')) {
 } else {
     baseUrl = 'http://localhost:8000/src/';
     switch2('connection');
-    //switch2('skyjo');
+    //switch2('selection');
     myRole = 'main';
     myName = 'Player 1';
     otherRole = 'second';
