@@ -432,13 +432,14 @@ function onMouseDown(event) {
             new TWEEN.Tween(CardToAnimate.rotation).to({ x: 0, y: 0, z: 0 }, 500)
                 .onStart(() => {
                     CardToAnimate.position.set(0, 0, 0.02);
+                    turnState = 'blocked';
                 })    
                 .onComplete(() => {
                     CardToAnimate.position.set(0, 0, 0.01);
                     shiftOpenCardStack();
                     selectedCard = null;
                     turnState = 'putDown';
-                    console.log('THIS SHOULD PRINT! ', turnState, selectedCard);
+                    console.log(turnState, selectedCard);
                 }
             ).start();
         } else if(intersect == 'myCards') {
@@ -521,6 +522,7 @@ function shiftOpenCardStack() {
 
 async function swap(intersects, type) {
     if (!intersects[0]) return;
+    turnState = 'blocked';
     const Card = intersects[0].object.parent;
     const card = GAME_STATE[myRole].find(c => c.id == Card.userData.id);
 
