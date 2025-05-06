@@ -772,7 +772,7 @@ function updateScoreTable(myScore, otherScore) {
             winnerIndicator.style.display = 'none';
             cleanupScene();
             switch2('selection')
-        }, 6000);
+        }, 20000);
     }
 }
 
