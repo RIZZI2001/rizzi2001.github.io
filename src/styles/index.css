@@ -73,6 +73,11 @@ h1 {
     border: #ff9900 5px solid;
 }
 
+#shadertoy-button {
+    color: #7484e0;
+    border: #7484e0 5px solid;
+}
+
 .title {
     text-align: center;
     font-size: 24px;
