@@ -45,8 +45,14 @@ h1 {
     padding: 20px;
 }
 
+.item {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
 button {
-    width: 100%;
+    width: 450px;
     padding: 10px;
     border: none;
     border-radius: 10px;
@@ -55,6 +61,14 @@ button {
     font-weight: bold;
     cursor: pointer;
     margin-top: 10px;
+}
+
+.date {
+    width: 150px;
+    color: #4d4d4d;
+    font-size: 1.2em;
+    margin-bottom: 20px;
+    text-align: center;
 }
 
 .pico-8-button {
