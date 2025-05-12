@@ -1,0 +1,15 @@
+<div id="connect-container">
+    <div id="name-container" class="submit-container">
+        <input type="text" class="text-input" id="name-input" placeholder="Enter name">
+        <button id="name-button" class="submit-button" onclick="submitName()">Submit</button>
+    </div>
+    <div id="copy-id-container" class="submit-container" style="display: none;">
+        <p id="id-display">Your peer ID:</p>
+        <button id="id-clipboard-button" class="submit-button" onclick="copyOwnId()">Copy your ID</button>
+    </div>
+    <div id="enter-id-container" class="submit-container" style="display: none;">
+        <input type="text" class="text-input" id="peer-id-input" placeholder="Enter peer ID">
+        <button id="connect-button" class="submit-button" onclick="connect2peer()">Connect</button>
+    </div>
+    <button id="pico-8-button" class="hidden-button" onclick="window.location.href='/pico-8/robotrack.html'"></button>
+</div>
