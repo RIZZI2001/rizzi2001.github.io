@@ -1,0 +1,67 @@
+body, button, input, select, textarea {
+    font-family: Poppins, sans-serif;
+}
+
+body {
+    background-image: url('/images/FlowField.png');
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+    margin: 0;
+    padding: 20px;
+}
+
+h1 {
+    color: white;
+    font-size: 3em;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.title {
+    text-align: center;
+    font-size: 24px;
+    margin-bottom: 0px;
+    margin-top: 0px;
+    font-weight: bold;
+    color: #4d4d4d;
+}
+
+.description {
+    color: white;
+    font-size: 1.2em;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+#button-container {
+    max-width: 600px;
+    margin: auto;
+    margin-bottom: 20px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+}
+
+button {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    background-color: #ececec;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+.pico-8-button {
+    color: #68b124;
+    border: #68b124 5px solid;
+}
+
+.turbowarp-button {
+    color: #e06969;
+    border: #e06969 5px solid;
+}

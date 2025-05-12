@@ -38,7 +38,7 @@ h1 {
     width: 100%;
     padding: 10px;
     border: none;
-    border-radius: 5px;
+    border-radius: 10px;
     background-color: #ececec;
     font-size: 16px;
     font-weight: bold;
@@ -51,19 +51,14 @@ h1 {
     border: #3c90c0 5px solid;
 }
 
-#robotrack-button {
-    color: #e06969;
-    border: #e06969 5px solid;
+#pico-8-button {
+    color: #68b124;
+    border: #68b124 5px solid;
 }
 
-#robominer-button {
+#turbowarp-button {
     color: #e06969;
     border: #e06969 5px solid;
-}
-
-#spotify-button {
-    color: #36bb65;
-    border: #36bb65 5px solid;
 }
 
 #instagram-button {
