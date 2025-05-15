@@ -709,7 +709,11 @@ function initLogic(bag = null, maxPlacableBlocksofOther = 0) {
                 }
             }
         }
-        blockArray.sort(() => Math.random() - 0.5);
+        // Fisher-Yates shuffle for unbiased randomization
+        for (let i = blockArray.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [blockArray[i], blockArray[j]] = [blockArray[j], blockArray[i]];
+        }
 
         GAME_STATE.bag = blockArray;
     } else {

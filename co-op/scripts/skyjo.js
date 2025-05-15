@@ -652,7 +652,11 @@ function init() {
                 cardID++;
             }
         }
-        cardStack = cardStack.sort(() => Math.random() - 0.5);
+        // Fisher-Yates shuffle for unbiased randomization
+        for (let i = cardStack.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [cardStack[i], cardStack[j]] = [cardStack[j], cardStack[i]];
+        }
 
         GAME_STATE = {
             cardStack: cardStack,

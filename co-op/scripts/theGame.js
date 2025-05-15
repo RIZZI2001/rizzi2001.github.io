@@ -394,8 +394,17 @@ function drawCard() {
 }
 
 function initLogic() {
+    // Fisher-Yates shuffle
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
     GAME_STATE = {
-        cardStack: Array.from({ length: 58 }, (_, i) => i + 2).sort(() => Math.random() - 0.5),
+        cardStack: shuffle(Array.from({ length: 58 }, (_, i) => i + 2)),
         hand: [],
         main: {
             upStack: { value: 1, color: mainColor },
