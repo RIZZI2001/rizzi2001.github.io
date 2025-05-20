@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>GLSL Shader Gallery</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; height: 100%; font-family: Poppins; }
+    body { background: #000; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+    #left { left: 10px; }
+    #right { right: 10px; }
+    .overlayButton {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+        border: none;
+        padding: 10px;
+        cursor: pointer;
+        font-size: 24px;
+        border-radius: 10px;
+    }
+    #info {
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        font-size: 30px;
+        transform: translateX(-50%);
+        color: white;
+        text-align: center;
+        background-color: rgba(0, 0, 0, 0.5);
+        padding: 10px;
+        border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+    <button id="left" class="overlayButton">Previous</button>
+    <button id="right" class="overlayButton">Next</button>
+    <p id="info"></p>
+    <canvas id="glcanvas"></canvas>
+    <script src="shaders.js"></script>
+</body>
+</html>

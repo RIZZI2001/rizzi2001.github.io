@@ -81,6 +81,11 @@ h1 {
     border: #9b6cd1 5px solid;
 }
 
+#shaders-button {
+    color: #dd4db9;
+    border: #dd4db9 5px solid;
+}
+
 .title {
     text-align: center;
     font-size: 24px;
@@ -91,8 +96,8 @@ h1 {
 }
 
 .icon {
-    width: 25px;
     height: 25px;
+    width: auto;
     margin-top: 0;
     margin-bottom: 0;
     margin-right: 10px;
