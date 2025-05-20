@@ -10,9 +10,9 @@ const code = lines.slice(2).join('\n')
   .replace(/\t/g, '\\t');
 
 const jsonObj = `{
-    "name": "${name}",
-    "date": "${date}",
-    "code": "${code}"
-}`;
+      "name": "${name}",
+      "date": "${date}",
+      "code": "${code}"
+    }`;
 
 console.log(jsonObj);

@@ -30,6 +30,7 @@ function createProgram(gl, vertSrc, fragSrc) {
 
 let currentShader = 0;
 let worldTextures = [null, null];
+let touch = [0, 0];
 let program, posLoc, resLoc, timeLoc, powerLoc, batteryLoc, backbufferLoc, frameLoc, world1Loc, world2Loc;
 let gl, canvas;
 let shaderSources = [];
@@ -42,8 +43,8 @@ function createTexture(w, h) {
     const tex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     return tex;
@@ -87,6 +88,13 @@ function setupShader(idx) {
     frameLoc = gl.getUniformLocation(program, 'frame');
     world1Loc = gl.getUniformLocation(program, 'world1');
     world2Loc = gl.getUniformLocation(program, 'world2');
+
+    for (let i = 0; i < 2; ++i) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbos[i]);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
 
 function loadTexture(gl, url) {
@@ -158,6 +166,10 @@ async function main() {
             gl.bindTexture(gl.TEXTURE_2D, worldTextures[1]);
             gl.uniform1i(world2Loc, 2);
         }
+        let touchLoc = gl.getUniformLocation(program, 'touch');
+        if (touchLoc) {
+            gl.uniform2f(touchLoc, touch[0], touch[1]);
+        }
 
         // If shader uses backbuffer, render to FBO and then blit to canvas
         if (backbufferLoc !== null) {
@@ -205,6 +217,11 @@ async function main() {
         setupShader(currentShader);
         frameCount = 0;
     };
+    canvas.addEventListener('mousemove', function(e) {
+        const rect = canvas.getBoundingClientRect();
+        touch[0] = (e.clientX - rect.left) * canvas.width / rect.width;
+        touch[1] = canvas.height - (e.clientY - rect.top) * canvas.height / rect.height;
+    });
 }
 
 // Load shaders from JSON, then start main
