@@ -136,6 +136,7 @@ async function main() {
     fbos = [null, null];
     resizeBackbuffers(canvas.width, canvas.height);
 
+    currentShader = shaderSources.length - 1;
     setupShader(currentShader);
 
     function resize() {
@@ -208,12 +209,12 @@ async function main() {
     requestAnimationFrame(render);
 
     document.getElementById('left').onclick = () => {
-        currentShader = (currentShader - 1 + shaderSources.length) % shaderSources.length;
+        currentShader = (currentShader + 1 + shaderSources.length) % shaderSources.length;
         setupShader(currentShader);
         frameCount = 0;
     };
     document.getElementById('right').onclick = () => {
-        currentShader = (currentShader + 1) % shaderSources.length;
+        currentShader = (currentShader - 1) % shaderSources.length;
         setupShader(currentShader);
         frameCount = 0;
     };
