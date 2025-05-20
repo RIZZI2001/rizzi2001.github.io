@@ -214,7 +214,7 @@ async function main() {
         frameCount = 0;
     };
     document.getElementById('right').onclick = () => {
-        currentShader = (currentShader - 1) % shaderSources.length;
+        currentShader = (currentShader - 1 + shaderSources.length) % shaderSources.length;
         setupShader(currentShader);
         frameCount = 0;
     };
