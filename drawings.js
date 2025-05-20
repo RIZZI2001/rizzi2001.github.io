@@ -1,13 +1,14 @@
 const column_1 = document.getElementById('column_1');
 const column_2 = document.getElementById('column_2');
 
-let nextColumn = column_1;
+let column_1_height = 0;
+let column_2_height = 0;
 
 function setupGalleryItemClick() {
     const galleryItems = document.querySelectorAll('.gallery-item');
     galleryItems.forEach(item => {
         item.addEventListener('click', () => {
-            const imgSrc = item.querySelector('img').src;
+            const imgSrc = item.getAttribute('data-fullsrc');
             const name = item.querySelector('.name-overlay').textContent;
             const date = item.querySelector('.date-overlay').textContent;
 
@@ -49,7 +50,7 @@ fetch('images/drawings/drawings.json')
             galleryItem.classList.add('gallery-item');
 
             const img = document.createElement('img');
-            img.src = item.src;
+            img.src = item.thumb || item.src;
             img.alt = item.name;
 
             const dateOverlay = document.createElement('div');
@@ -59,17 +60,22 @@ fetch('images/drawings/drawings.json')
             nameOverlay.classList.add('name-overlay');
             nameOverlay.textContent = item.name;
 
+            galleryItem.setAttribute('data-fullsrc', item.src);
+
             galleryItem.appendChild(img);
             galleryItem.appendChild(dateOverlay);
             galleryItem.appendChild(nameOverlay);
-            nextColumn.appendChild(galleryItem);
 
-            // Alternate between columns
-            if (nextColumn === column_1) {
-                nextColumn = column_2;
-            } else {
-                nextColumn = column_1;
-            }
+            img.onload = function() {
+                if (column_1_height <= column_2_height) {
+                    column_1.appendChild(galleryItem);
+                    column_1_height += img.naturalHeight;
+                } else {
+                    column_2.appendChild(galleryItem);
+                    column_2_height += img.naturalHeight;
+                }
+            };
+
         });
         setupGalleryItemClick();
     })
