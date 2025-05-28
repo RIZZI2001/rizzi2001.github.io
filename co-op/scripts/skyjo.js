@@ -776,7 +776,10 @@ function updateScoreTable(myScore, otherScore) {
             winnerIndicator.style.display = 'none';
             cleanupScene();
             switch2('selection')
-        }, 20000);
+        }, 15000);
+        return false; // End the game
+    } else {
+        return true; // Continue the game
     }
 }
 
@@ -786,15 +789,19 @@ function showRoundWinner(winnerName, winnerScore, loserScore) {
     winnerIndicator.style.color = hexToCssColor(winnerName == myName ? myColor() : otherColor());
     winnerIndicator.style.display = 'block';
 
+    let continueGame;
     if(winnerName == myName) {
-        updateScoreTable(winnerScore, loserScore);
+        continueGame = updateScoreTable(winnerScore, loserScore);
     } else {
-        updateScoreTable(loserScore, winnerScore);
+        continueGame = updateScoreTable(loserScore, winnerScore);
     }
-    endGameTimeout = setTimeout(() => {
-        winnerIndicator.style.display = 'none';
-        cleanupRound();
-    }, 6000);
+    console.log('Continue Game:', continueGame);
+    if(continueGame) {
+        endGameTimeout = setTimeout(() => {
+            winnerIndicator.style.display = 'none';
+            cleanupRound();
+        }, 6000);
+    }
 }
 
 function cleanupRound() {
