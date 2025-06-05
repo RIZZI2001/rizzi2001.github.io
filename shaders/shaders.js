@@ -1,3 +1,31 @@
+const editor = document.getElementById('editor');
+const textArea = document.getElementById('shader-code');
+
+const default_shader =
+`
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
+uniform vec2 resolution;
+uniform float time;
+uniform sampler2D backbuffer;
+uniform int frame;
+uniform vec2 touch;
+        
+const float pi = 3.1415926;
+        
+vec4 getColorAt(vec2 coord) {
+ return texture2D(backbuffer, coord/resolution);
+}
+        
+void main(void) {
+ gl_FragColor = vec4(1.);
+}
+`;
+
 const vertShaderSrc = `
   attribute vec2 position;
   void main() {
@@ -29,6 +57,7 @@ function createProgram(gl, vertSrc, fragSrc) {
 }
 
 let currentShader = 0;
+let currentShaderCode = '';
 let worldTextures = [null, null];
 let touch = [0, 0];
 let program, posLoc, resLoc, timeLoc, powerLoc, batteryLoc, backbufferLoc, frameLoc, world1Loc, world2Loc;
@@ -68,33 +97,52 @@ function resizeBackbuffers(w, h) {
     }
 }
 
-function setupShader(idx) {
+function readShader(idx) {
     info = document.getElementById('info');
     info.innerHTML = shaderSources[idx].name + ' [' + shaderSources[idx].date + ']';
+    info.style.display = 'block';
+    currentShaderCode = shaderSources[idx].code;
+    textArea.value = currentShaderCode;
+}
 
-    if (program) gl.deleteProgram(program);
-    program = createProgram(gl, vertShaderSrc, shaderSources[idx].code);
-    gl.useProgram(program);
+function startShader() {
+    const errorDiv = document.getElementById('shader-error');
+    if (errorDiv) errorDiv.style.display = 'none';
+    try {
+        if (program) gl.deleteProgram(program);
+        program = createProgram(gl, vertShaderSrc, currentShaderCode);
+        gl.useProgram(program);
 
-    posLoc = gl.getAttribLocation(program, 'position');
-    gl.enableVertexAttribArray(posLoc);
-    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+        posLoc = gl.getAttribLocation(program, 'position');
+        gl.enableVertexAttribArray(posLoc);
+        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 
-    resLoc = gl.getUniformLocation(program, 'resolution');
-    timeLoc = gl.getUniformLocation(program, 'time');
-    powerLoc = gl.getUniformLocation(program, 'powerConnected');
-    batteryLoc = gl.getUniformLocation(program, 'battery');
-    backbufferLoc = gl.getUniformLocation(program, 'backbuffer');
-    frameLoc = gl.getUniformLocation(program, 'frame');
-    world1Loc = gl.getUniformLocation(program, 'world1');
-    world2Loc = gl.getUniformLocation(program, 'world2');
+        resLoc = gl.getUniformLocation(program, 'resolution');
+        timeLoc = gl.getUniformLocation(program, 'time');
+        powerLoc = gl.getUniformLocation(program, 'powerConnected');
+        batteryLoc = gl.getUniformLocation(program, 'battery');
+        backbufferLoc = gl.getUniformLocation(program, 'backbuffer');
+        frameLoc = gl.getUniformLocation(program, 'frame');
+        world1Loc = gl.getUniformLocation(program, 'world1');
+        world2Loc = gl.getUniformLocation(program, 'world2');
 
-    for (let i = 0; i < 2; ++i) {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, fbos[i]);
-        gl.clearColor(0, 0, 0, 0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        for (let i = 0; i < 2; ++i) {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbos[i]);
+            gl.clearColor(0, 0, 0, 0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+        }
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        frameCount = 0;
+        return true;
+    } catch (e) {
+        if (errorDiv) {
+            errorDiv.textContent = e.message;
+            errorDiv.style.display = 'block';
+            return false;
+        } else {
+            alert(e.message);
+        }
     }
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
 
 function loadTexture(gl, url) {
@@ -137,7 +185,8 @@ async function main() {
     resizeBackbuffers(canvas.width, canvas.height);
 
     currentShader = shaderSources.length - 1;
-    setupShader(currentShader);
+    readShader(currentShader);
+    startShader();
 
     function resize() {
         canvas.width = window.innerWidth;
@@ -210,13 +259,33 @@ async function main() {
 
     document.getElementById('left').onclick = () => {
         currentShader = (currentShader + 1 + shaderSources.length) % shaderSources.length;
-        setupShader(currentShader);
-        frameCount = 0;
+        readShader(currentShader);
+        startShader();
     };
     document.getElementById('right').onclick = () => {
         currentShader = (currentShader - 1 + shaderSources.length) % shaderSources.length;
-        setupShader(currentShader);
-        frameCount = 0;
+        readShader(currentShader);
+        startShader();
+    };
+    document.getElementById('edit-button').onclick = () => {
+        editor.style.display = 'block';
+        textArea.focus();
+    }
+    document.getElementById('save-button').onclick = () => {
+        currentShaderCode = textArea.value;
+        compiled = startShader();
+        if (compiled) {
+            editor.style.display = 'none';
+        }
+    };
+    document.getElementById('cancel-button').onclick = () => {
+        editor.style.display = 'none';
+    };
+    document.getElementById('clear-button').onclick = () => {
+        editor.querySelector('textarea').value = default_shader;
+        currentShaderCode = textArea.value;
+        startShader();
+        info.style.display = 'none';
     };
     canvas.addEventListener('mousemove', function(e) {
         const rect = canvas.getBoundingClientRect();
