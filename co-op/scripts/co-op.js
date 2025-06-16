@@ -27,10 +27,20 @@ function hexToCssColor(hex) {
     return `#${new THREE.Color(hex).getHexString()}`;
 }
 
-function myColor() {
+function myColor(brightness = 'normal') {
+    if (brightness === 'dark') {
+        return myRole == 'main' ? mainColorDark : secondColorDark;
+    } else if (brightness === 'semi-dark') {
+        return myRole == 'main' ? mainColorSemiDark : secondColorSemiDark;
+    }
     return myRole == 'main' ? mainColor : secondColor;
 }
-function otherColor() {
+function otherColor(brightness = 'normal') {
+    if (brightness === 'dark') {
+        return otherRole == 'main' ? mainColorDark : secondColorDark;
+    } else if (brightness === 'semi-dark') {
+        return otherRole == 'main' ? mainColorSemiDark : secondColorSemiDark;
+    }
     return otherRole == 'main' ? mainColor : secondColor;
 }
 
@@ -69,11 +79,18 @@ function switch2(pageName) {
             }
 
             // Add new page-specific CSS
-            const css = document.createElement('link');
-            css.rel = 'stylesheet';
-            css.href = baseUrl + 'styles/' + pageName + '.css';
-            css.setAttribute('data-page', pageName);
-            document.head.appendChild(css);
+            const stylesheetUrl = baseUrl + 'styles/' + pageName + '.css';
+            fetch(stylesheetUrl, { method: 'HEAD' })
+                .then(response => {
+                if (response.ok) {
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = stylesheetUrl;
+                    document.head.appendChild(link);
+                }
+                })
+                .catch(() => {
+                });
 
             // Add new page-specific JS
             const js = document.createElement('script');
@@ -134,7 +151,7 @@ if(window.location.href.includes('github')) {
 } else {
     baseUrl = 'http://localhost:8000/co-op/';
     switch2('connection');
-    //switch2('selection');
+    //switch2('qwixx');
     myRole = 'main';
     myName = 'Player 1';
     otherRole = 'second';

@@ -17,6 +17,11 @@
             title: 'Skyjo',
             image: 'skyjo.png',
             link: 'skyjo'
+        },
+        {
+            title: 'Qwixx',
+            image: 'skyjo.png',
+            link: 'qwixx'
         }
     ];
 

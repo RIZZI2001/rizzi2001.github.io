@@ -819,7 +819,10 @@ window.endTurn = function() {
         GAME_STATE[myRole] += 6;
         updateScore();
 
-        const winnerName = GAME_STATE[myRole] > GAME_STATE[otherRole] ? myName : otherName;
+        let winnerName = GAME_STATE[myRole] > GAME_STATE[otherRole] ? myName : otherName;
+        if(GAME_STATE[myRole] == GAME_STATE[otherRole]) {
+            winnerName = 'Both players';
+        }
         conn.send(packageData('END_GAME', { winner: winnerName }));
 
         showWinner(winnerName);
