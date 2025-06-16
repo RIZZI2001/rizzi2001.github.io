@@ -2,6 +2,7 @@ function startQwixx() {
 
 const currentPlayerIndicator = document.getElementById('current-player-indicator');
 const winnerIndicator = document.getElementById('winner-indicator');
+const qwixx_container = document.getElementById('qwixx-boards-container');
 
 window.back2Selection = function() {
     conn.send(packageData('BACK2SELECT', {}));
@@ -20,6 +21,10 @@ window.communication = function(command, args) {
             switch2('selection');
             break;
     }
+}
+
+function cleanupScene() {
+    qwixx_container.innerHTML = '';
 }
 
 function generateBoards() {
@@ -159,7 +164,6 @@ function generateBoards() {
         });
         return board;
     }
-    const qwixx_container = document.getElementById('qwixx-boards-container');
     const otherboardContainer = document.createElement('div');
     otherboardContainer.className = 'qwixx-board-container';
     otherboardContainer.innerText = otherName;
