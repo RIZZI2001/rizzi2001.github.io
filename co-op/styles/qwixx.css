@@ -6,12 +6,68 @@
     pointer-events: auto;
 }
 
-#qwixx-boards-container {
+#qwixx-container {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    background-color: #303030;
+    width: 100%;
+}
+
+.qwixx-dice-container {
+    margin-right: 40px;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    background-color: #303030;
+    background-color: #494949;
+    border-radius: 20px;
+    border: #5a5a5a 2px solid;
+}
+
+.qwixx-inner-dice-container {
+    display: grid;
+    justify-items: center;
+    align-items: center;
+    grid-template-columns: repeat(2, auto);
+    grid-template-rows: repeat(3, auto);
+    gap: 5px; /* or 0 if you want them tight */
+    padding: 0;
+    width: fit-content;
+    height: fit-content;
+    border-radius: 18px;
+    border: #747474 2px solid;
+    background-color: #727272;
+}
+
+.qwixx-die {
+    border-radius: 10px;
+    border: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 34px;
+    color: black;
+}
+
+.qwixx-roll-button {
+    width: calc(100% - 10px);
+    margin-top: 5px;
+    height: 80px;
+    background-color: rgb(202, 202, 202);
+    border-radius: 18px;
+    border: none;
+    cursor: pointer;
+    font-size: 24px;
+}
+
+.qwixx-boards-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
 }
 
 .qwixx-board-container {

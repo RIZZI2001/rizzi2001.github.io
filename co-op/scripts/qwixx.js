@@ -2,7 +2,11 @@ function startQwixx() {
 
 const currentPlayerIndicator = document.getElementById('current-player-indicator');
 const winnerIndicator = document.getElementById('winner-indicator');
-const qwixx_container = document.getElementById('qwixx-boards-container');
+const qwixxContainer = document.getElementById('qwixx-container');
+
+const colors = ['#d73f4c', '#fee44a', '#419f5b', '#394a8b', '#e3e3e3', '#bdbdbd'];
+
+let scene = {};
 
 window.back2Selection = function() {
     conn.send(packageData('BACK2SELECT', {}));
@@ -24,11 +28,21 @@ window.communication = function(command, args) {
 }
 
 function cleanupScene() {
-    qwixx_container.innerHTML = '';
+    qwixxContainer.innerHTML = '';
+    scene = {};
 }
 
-function generateBoards() {
+function generateQwixxUI() {
+    scene = {
+        dice: [],
+        boards: {
+            myBoard: null,
+            otherBoard: null
+        },
+    };
     function newBoard(buttons = true) {
+        let sceneBoard = {};
+
         const board = document.createElement('div');
         const boardHeight = window.innerHeight/2 - 20;
         const boardWidth = boardHeight * 1.72;
@@ -39,7 +53,6 @@ function generateBoards() {
         board.className = 'qwixx-board';
         board.innerHTML = '';
         const rows = ['red-row', 'yellow-row', 'green-row', 'blue-row', 'info&miss', 'score_row'];
-        const colors = ['#d73f4c', '#fee44a', '#419f5b', '#394a8b', '#e3e3e3', '#bdbdbd'];
         const lightColors = ['#f9e0e5', '#fdf9f1', '#ebf3f1', '#e4e0f2', '#ffffff', '#ffffff'];
         const darkColors = ['#943037', '#d8a352', '#3f7c52', '#2d2e4b', '#999999', '#000000'];
 
@@ -50,6 +63,8 @@ function generateBoards() {
             rowDiv.style.backgroundColor = colors[row_index];
             const rowHeight = (boardHeight - 70) / rows.length;
             rowDiv.style.height = `${rowHeight}px`;
+
+            let sceneRow = [];
 
             if(row_index < 4) {
                 for(let i = 2; i <= 13; i++) {
@@ -78,6 +93,7 @@ function generateBoards() {
                     }
 
                     rowDiv.appendChild(numberDiv);
+                    sceneRow.push(numberDiv);
                 }
             }
             else if(row === 'info&miss') {
@@ -135,6 +151,7 @@ function generateBoards() {
                     }
 
                     missDivInner.appendChild(missBox);
+                    sceneRow.push(missBox);
                 }
 
                 missDiv.appendChild(missDivInner);
@@ -166,34 +183,81 @@ function generateBoards() {
                     }
                     scoreDiv.innerText = '0';
                     scoreDiv.id = `score-${i}`;
-                    rowDiv.appendChild(scoreDiv.cloneNode(true));
+                    const clone = scoreDiv.cloneNode(true);
+                    rowDiv.appendChild(clone);
+                    sceneRow.push(clone);
                 }
             }
             board.appendChild(rowDiv);
+            sceneBoard[rows[row_index]] = sceneRow;
         });
-        return board;
+        //console.log(sceneBoard);
+        return {board, sceneBoard};
     }
+
+    //dice
+    const diceContainer = document.createElement('div');
+    diceContainer.className = 'qwixx-dice-container';
+    const diceContainerHeight = window.innerHeight / 2 - 20;
+    const diceContainerWidth = diceContainerHeight / 2;
+    diceContainer.style.height = `${diceContainerHeight}px`;
+    diceContainer.style.width = `${diceContainerWidth}px`;
+
+    const innerDiceContainer = document.createElement('div');
+    innerDiceContainer.className = 'qwixx-inner-dice-container';
+    innerDiceContainer.style.height = `${diceContainerHeight - 95}px`;
+    innerDiceContainer.style.width = `${diceContainerWidth - 10}px`;
+
+    for(let i = 0; i < 6; i++) {
+        const die = document.createElement('div');
+        die.className = 'qwixx-die';
+        const size = (diceContainerWidth / 2) - 15;
+        die.style.width = `${size}px`;
+        die.style.height = `${size}px`;
+        die.style.backgroundColor = colors[Math.min(i, 4)];
+        die.innerText = Math.floor(Math.random() * 6) + 1; // Random number between 1 and 6
+        innerDiceContainer.appendChild(die);
+        scene.dice.push(die);
+    }
+
+    diceContainer.appendChild(innerDiceContainer);
+
+    const rollButton = document.createElement('button');
+    rollButton.className = 'qwixx-roll-button';
+    rollButton.innerText = 'Roll Dice';
+    diceContainer.appendChild(rollButton);
+
+    qwixxContainer.appendChild(diceContainer);
+
+    const boardsContainer = document.createElement('div');
+    boardsContainer.className = 'qwixx-boards-container';
+    qwixxContainer.appendChild(boardsContainer);
+
     const otherboardContainer = document.createElement('div');
     otherboardContainer.className = 'qwixx-board-container';
     otherboardContainer.innerText = otherName;
     otherboardContainer.style.backgroundColor = hexToCssColor(otherColor('semi-dark'));
     otherboardContainer.style.width = `${(window.innerHeight / 2) * 1.72 + 100}px`;
-    const otherBoard = newBoard(false);
+    const {board: otherBoard, sceneBoard: otherBoardScene} = newBoard(false);
+    scene.boards.otherBoard = otherBoardScene;
     otherBoard.id = 'other-board';
     otherboardContainer.appendChild(otherBoard);
-    qwixx_container.appendChild(otherboardContainer);
+    boardsContainer.appendChild(otherboardContainer);
 
     const myboardContainer = document.createElement('div');
     myboardContainer.className = 'qwixx-board-container';
     myboardContainer.innerText = myName;
     myboardContainer.style.backgroundColor = hexToCssColor(myColor('semi-dark'));
     myboardContainer.style.width = `${otherboardContainer.offsetWidth}px`;
-    const myBoard = newBoard(true);
+    const {board: myBoard, sceneBoard: myBoardScene} = newBoard(true);
+    scene.boards.myBoard = myBoardScene;
     myBoard.id = 'your-board';
     myboardContainer.appendChild(myBoard);
-    qwixx_container.appendChild(myboardContainer);
+    boardsContainer.appendChild(myboardContainer);
+
+    console.log(scene);
 }
-generateBoards();
+generateQwixxUI();
 
 }
 startQwixx();
