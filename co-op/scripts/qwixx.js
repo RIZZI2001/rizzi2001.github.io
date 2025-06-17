@@ -6,6 +6,9 @@ const qwixxContainer = document.getElementById('qwixx-container');
 
 const colors = ['#d73f4c', '#fee44a', '#419f5b', '#394a8b', '#e3e3e3', '#bdbdbd'];
 
+//VALUES
+let diceValues = [0, 0, 0, 0, 0, 0]; // Values of the dice
+
 let scene = {};
 
 window.back2Selection = function() {
@@ -215,7 +218,7 @@ function generateQwixxUI() {
         die.style.width = `${size}px`;
         die.style.height = `${size}px`;
         die.style.backgroundColor = colors[Math.min(i, 4)];
-        die.innerText = Math.floor(Math.random() * 6) + 1; // Random number between 1 and 6
+        die.innerText = '0';
         innerDiceContainer.appendChild(die);
         scene.dice.push(die);
     }
@@ -225,6 +228,12 @@ function generateQwixxUI() {
     const rollButton = document.createElement('button');
     rollButton.className = 'qwixx-roll-button';
     rollButton.innerText = 'Roll Dice';
+    rollButton.addEventListener('click', function() {
+        for(let i = 0; i < 6; i++) {
+            diceValues[i] = Math.floor(Math.random() * 6) + 1;
+        }
+        animateDice();
+    });
     diceContainer.appendChild(rollButton);
 
     qwixxContainer.appendChild(diceContainer);
@@ -257,6 +266,25 @@ function generateQwixxUI() {
 
     console.log(scene);
 }
+
+function animateDice() {
+    //Change dice 6 times to random values, then set to the final diceValues
+    let count = 0;
+    const interval = setInterval(() => {
+        for(let i = 0; i < 6; i++) {
+            const randomValue = Math.floor(Math.random() * 6) + 1;
+            scene.dice[i].innerText = randomValue;
+        }
+        count++;
+        if(count === 6) {
+            clearInterval(interval);
+            for(let i = 0; i < 6; i++) {
+                scene.dice[i].innerText = diceValues[i];
+            }
+        }
+    }, 100);
+}
+
 generateQwixxUI();
 
 }
