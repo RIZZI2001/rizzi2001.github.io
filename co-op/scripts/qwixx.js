@@ -28,7 +28,7 @@ function cleanupScene() {
 }
 
 function generateBoards() {
-    function newBoard() {
+    function newBoard(buttons = true) {
         const board = document.createElement('div');
         const boardHeight = window.innerHeight/2 - 20;
         const boardWidth = boardHeight * 1.72;
@@ -44,37 +44,38 @@ function generateBoards() {
         const darkColors = ['#943037', '#d8a352', '#3f7c52', '#2d2e4b', '#999999', '#000000'];
 
         rows.forEach(row => {
-            const index = rows.indexOf(row);
+            const row_index = rows.indexOf(row);
             const rowDiv = document.createElement('div');
             rowDiv.className = 'qwixx-row';
-            rowDiv.style.backgroundColor = colors[index];
+            rowDiv.style.backgroundColor = colors[row_index];
             const rowHeight = (boardHeight - 70) / rows.length;
             rowDiv.style.height = `${rowHeight}px`;
 
-            if(index < 4) {
+            if(row_index < 4) {
                 for(let i = 2; i <= 13; i++) {
                     const numberDiv = document.createElement('div');
                     numberDiv.className = 'qwixx-number-div';
                     numberDiv.style.width = `${rowHeight - 10}px`;
                     numberDiv.style.height = `${rowHeight - 10}px`;
-                    numberDiv.style.backgroundColor = lightColors[index];
-                    numberDiv.style.border = `3px solid ${darkColors[index]}`;
-
-                    const numberButton = document.createElement('button');
-                    numberButton.className = 'qwixx-number-button';
-                    numberButton.style.width = `${rowHeight - 10}px`;
-                    numberButton.style.height = `${rowHeight - 10}px`;
-                    numberButton.innerText = i;
-                    numberButton.style.color = darkColors[index];
-                    numberButton.onclick = function() {
-                        //conn.send(packageData('SELECT_NUMBER', { row: row, number: i }));
-                    };
-                    if (i === 13) {
-                        numberButton.innerText = '🔒';
+                    numberDiv.style.backgroundColor = lightColors[row_index];
+                    numberDiv.style.border = `3px solid ${darkColors[row_index]}`;
+                    numberDiv.innerText = i;
+                    if(i === 13) {
                         numberDiv.style.borderRadius = '50%';
+                        numberDiv.innerText = '🔒';
                     }
 
-                    numberDiv.appendChild(numberButton);
+                    if(buttons) {
+                        const numberButton = document.createElement('button');
+                        numberButton.className = 'qwixx-number-button';
+                        numberButton.style.width = `${rowHeight - 10}px`;
+                        numberButton.style.height = `${rowHeight - 10}px`;
+                        numberButton.style.color = darkColors[row_index];
+                        numberButton.onclick = function() {
+                            console.log(`Clicked number ${i} in row ${row}`);
+                        };
+                        numberDiv.appendChild(numberButton);
+                    }
 
                     rowDiv.appendChild(numberDiv);
                 }
@@ -95,8 +96,8 @@ function generateBoards() {
                     infoDiv.className = 'qwixx-info-div';
                     infoDiv.style.width = `${rowHeight - 30}px`;
                     infoDiv.style.height = `${rowHeight - 10}px`;
-                    infoDiv.style.backgroundColor = lightColors[index];
-                    infoDiv.style.border = `3px solid ${darkColors[index]}`;
+                    infoDiv.style.backgroundColor = lightColors[row_index];
+                    infoDiv.style.border = `3px solid ${darkColors[row_index]}`;
                     infoDiv.innerText = `${i}x \n ${value}`;
                     value += (i+1);
                     rowDiv.appendChild(infoDiv);
@@ -114,18 +115,26 @@ function generateBoards() {
                 missDivInner.className = 'qwixx-miss-inner-div';
                 missDivInner.style.width = '100%';
                 missDivInner.style.height = `${(rowHeight - 10) / 2}px`;
-                
-                const missBox = document.createElement('div');
-                missBox.className = 'qwixx-miss-box';
-                missBox.style.width = `${(rowHeight - 10) / 2}px`;
-                missBox.style.height = `${(rowHeight - 10) / 2}px`;
-                missBox.style.backgroundColor = lightColors[index];
-                missBox.style.border = `3px solid ${darkColors[index]}`;
 
                 // add 4 miss boxes to the inner div
                 for(let i = 0; i < 4; i++) {
-                    const missBoxClone = missBox.cloneNode();
-                    missDivInner.appendChild(missBoxClone);
+                    const missBox = document.createElement('div');
+                    missBox.className = 'qwixx-miss-box';
+                    missBox.style.width = `${(rowHeight - 10) / 2}px`;
+                    missBox.style.height = `${(rowHeight - 10) / 2}px`;
+                    missBox.style.backgroundColor = lightColors[row_index];
+                    missBox.style.border = `3px solid ${darkColors[row_index]}`;
+
+                    if(buttons) {
+                        const missButton = document.createElement('button');
+                        missButton.className = 'qwixx-miss-button';
+                        missButton.addEventListener('click', function() {
+                            console.log(`Clicked miss box ${i + 1} in row ${row}`);
+                        });
+                        missBox.appendChild(missButton);
+                    }
+
+                    missDivInner.appendChild(missBox);
                 }
 
                 missDiv.appendChild(missDivInner);
@@ -169,7 +178,7 @@ function generateBoards() {
     otherboardContainer.innerText = otherName;
     otherboardContainer.style.backgroundColor = hexToCssColor(otherColor('semi-dark'));
     otherboardContainer.style.width = `${(window.innerHeight / 2) * 1.72 + 100}px`;
-    const otherBoard = newBoard();
+    const otherBoard = newBoard(false);
     otherBoard.id = 'other-board';
     otherboardContainer.appendChild(otherBoard);
     qwixx_container.appendChild(otherboardContainer);
@@ -179,7 +188,7 @@ function generateBoards() {
     myboardContainer.innerText = myName;
     myboardContainer.style.backgroundColor = hexToCssColor(myColor('semi-dark'));
     myboardContainer.style.width = `${otherboardContainer.offsetWidth}px`;
-    const myBoard = newBoard();
+    const myBoard = newBoard(true);
     myBoard.id = 'your-board';
     myboardContainer.appendChild(myBoard);
     qwixx_container.appendChild(myboardContainer);
