@@ -49,6 +49,9 @@
     align-items: center;
     font-size: 34px;
     color: black;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
 }
 
 .qwixx-roll-button {
@@ -110,6 +113,9 @@
     justify-content: center;
     align-items: center;
     font-size: 24px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
 }
 
 .qwixx-info-div {

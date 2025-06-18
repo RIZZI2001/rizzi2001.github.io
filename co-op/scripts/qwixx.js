@@ -7,9 +7,11 @@ const qwixxContainer = document.getElementById('qwixx-container');
 const colors = ['#d73f4c', '#fee44a', '#419f5b', '#394a8b', '#e3e3e3', '#bdbdbd'];
 
 //VALUES
-let diceValues = [0, 0, 0, 0, 0, 0]; // Values of the dice
+
 
 let scene = {};
+
+let GAME_STATE = {};
 
 window.back2Selection = function() {
     conn.send(packageData('BACK2SELECT', {}));
@@ -33,6 +35,29 @@ window.communication = function(command, args) {
 function cleanupScene() {
     qwixxContainer.innerHTML = '';
     scene = {};
+    GAME_STATE = {};
+}
+
+function init() {
+    GAME_STATE = {
+        diceValues: [1, 2, 3, 4, 5, 6],
+        myBoardValues: {
+            red: [],
+            yellow: [],
+            green: [],
+            blue: [],
+            misses: 0,
+            score: [0, 0, 0, 0, 0, 0]
+        },
+        otherBoardValues: {
+            red: [],
+            yellow: [],
+            green: [],
+            blue: [],
+            misses: 0,
+            score: [0, 0, 0, 0, 0, 0]
+        }
+    };
 }
 
 function generateQwixxUI() {
@@ -71,13 +96,17 @@ function generateQwixxUI() {
 
             if(row_index < 4) {
                 for(let i = 2; i <= 13; i++) {
+                    let cellValue = i;
+                    if(row_index >= 2) {
+                        cellValue = 14 - i;
+                    }
                     const numberDiv = document.createElement('div');
                     numberDiv.className = 'qwixx-number-div';
                     numberDiv.style.width = `${rowHeight - 10}px`;
                     numberDiv.style.height = `${rowHeight - 10}px`;
                     numberDiv.style.backgroundColor = lightColors[row_index];
                     numberDiv.style.border = `3px solid ${darkColors[row_index]}`;
-                    numberDiv.innerText = i;
+                    numberDiv.innerText = cellValue;
                     if(i === 13) {
                         numberDiv.style.borderRadius = '50%';
                         numberDiv.innerText = '🔒';
@@ -90,7 +119,7 @@ function generateQwixxUI() {
                         numberButton.style.height = `${rowHeight - 10}px`;
                         numberButton.style.color = darkColors[row_index];
                         numberButton.onclick = function() {
-                            console.log(`Clicked number ${i} in row ${row}`);
+                            clickNumber(cellValue, row);
                         };
                         numberDiv.appendChild(numberButton);
                     }
@@ -148,7 +177,7 @@ function generateQwixxUI() {
                         const missButton = document.createElement('button');
                         missButton.className = 'qwixx-miss-button';
                         missButton.addEventListener('click', function() {
-                            console.log(`Clicked miss box ${i + 1} in row ${row}`);
+                            clickMiss();
                         });
                         missBox.appendChild(missButton);
                     }
@@ -218,7 +247,7 @@ function generateQwixxUI() {
         die.style.width = `${size}px`;
         die.style.height = `${size}px`;
         die.style.backgroundColor = colors[Math.min(i, 4)];
-        die.innerText = '0';
+        die.style.backgroundImage = `url('img/dice_${i + 1}.png')`;
         innerDiceContainer.appendChild(die);
         scene.dice.push(die);
     }
@@ -230,9 +259,10 @@ function generateQwixxUI() {
     rollButton.innerText = 'Roll Dice';
     rollButton.addEventListener('click', function() {
         for(let i = 0; i < 6; i++) {
-            diceValues[i] = Math.floor(Math.random() * 6) + 1;
+            GAME_STATE.diceValues[i] = Math.floor(Math.random() * 6) + 1;
         }
         animateDice();
+        console.log('Dice rolled:', GAME_STATE.diceValues);
     });
     diceContainer.appendChild(rollButton);
 
@@ -268,23 +298,36 @@ function generateQwixxUI() {
 }
 
 function animateDice() {
-    //Change dice 6 times to random values, then set to the final diceValues
     let count = 0;
     const interval = setInterval(() => {
         for(let i = 0; i < 6; i++) {
             const randomValue = Math.floor(Math.random() * 6) + 1;
-            scene.dice[i].innerText = randomValue;
+            scene.dice[i].style.backgroundImage = `url('img/dice_${randomValue}.png')`;
         }
         count++;
         if(count === 6) {
             clearInterval(interval);
             for(let i = 0; i < 6; i++) {
-                scene.dice[i].innerText = diceValues[i];
+                scene.dice[i].style.backgroundImage = `url('img/dice_${GAME_STATE.diceValues[i]}.png')`;
             }
         }
     }, 100);
 }
 
+function clickMiss() {
+    console.log('Miss clicked');
+}
+
+function clickNumber(number, row) {
+    let id = number - 2;
+    if(row === 'green-row' || row === 'blue-row') {
+        id = 12 - number;
+    }
+    scene.boards.myBoard[row][id].style.backgroundImage = 'url("img/crossed.png")';
+    console.log(`Number ${number} clicked in row ${row}`);
+}
+
+init();
 generateQwixxUI();
 
 }
