@@ -15,4 +15,6 @@ const jsonObj = `{
       "code": "${code}"
     }`;
 
-console.log(jsonObj);
+fs.writeFileSync('shaders\\formated.json', jsonObj, 'utf8');
+
+//node shaders\formatShader.js

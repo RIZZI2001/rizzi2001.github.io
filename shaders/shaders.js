@@ -59,8 +59,9 @@ function createProgram(gl, vertSrc, fragSrc) {
 let currentShader = 0;
 let currentShaderCode = '';
 let worldTextures = [null, null];
+let rizziTexture;
 let touch = [0, 0];
-let program, posLoc, resLoc, timeLoc, powerLoc, batteryLoc, backbufferLoc, frameLoc, world1Loc, world2Loc;
+let program, posLoc, resLoc, timeLoc, powerLoc, batteryLoc, backbufferLoc, frameLoc, world1Loc, world2Loc, rizziLoc;
 let gl, canvas;
 let shaderSources = [];
 let frameCount = 0;
@@ -125,6 +126,7 @@ function startShader() {
         frameLoc = gl.getUniformLocation(program, 'frame');
         world1Loc = gl.getUniformLocation(program, 'world1');
         world2Loc = gl.getUniformLocation(program, 'world2');
+        rizziLoc = gl.getUniformLocation(program, 'rizzi');
 
         for (let i = 0; i < 2; ++i) {
             gl.bindFramebuffer(gl.FRAMEBUFFER, fbos[i]);
@@ -154,6 +156,9 @@ function loadTexture(gl, url) {
         gl.bindTexture(gl.TEXTURE_2D, tex);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
         gl.generateMipmap(gl.TEXTURE_2D);
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     };
     img.src = url;
     return tex;
@@ -169,6 +174,8 @@ async function main() {
 
     worldTextures[0] = loadTexture(gl, 'world1.jpg');
     worldTextures[1] = loadTexture(gl, 'world2.jpg');
+    rizziTexture = loadTexture(gl, 'rizzi.png');
+    
 
     // Fullscreen quad
     const vertices = new Float32Array([
@@ -215,6 +222,11 @@ async function main() {
             gl.activeTexture(gl.TEXTURE2);
             gl.bindTexture(gl.TEXTURE_2D, worldTextures[1]);
             gl.uniform1i(world2Loc, 2);
+        }
+        if (rizziTexture) {
+            gl.activeTexture(gl.TEXTURE3);
+            gl.bindTexture(gl.TEXTURE_2D, rizziTexture);
+            gl.uniform1i(rizziLoc, 3);
         }
         let touchLoc = gl.getUniformLocation(program, 'touch');
         if (touchLoc) {
