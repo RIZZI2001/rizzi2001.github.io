@@ -142,7 +142,7 @@ function handleData(data) {
     }
 }
 
-//setupPeerConnection();
+setupPeerConnection();
 
 let baseUrl;
 if(window.location.href.includes('github')) {
