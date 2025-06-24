@@ -383,6 +383,9 @@ function refreshHandPositions() {
 }
 
 function drawCard() {
+    if(GAME_STATE.cardStack.length == 0) {
+        return;
+    }
     const cardValue = GAME_STATE.cardStack.pop();
     GAME_STATE.hand.push(cardValue);
 
