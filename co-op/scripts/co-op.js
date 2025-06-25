@@ -61,8 +61,12 @@ function setupPeerConnection() {
     });
 }
 
+function rtt() {
+    conn.send(packageData('RTT', { time: Date.now() }));
+}
+
 function switch2(pageName) {
-    //console.log('Switching to ' + pageName);
+    console.log('Switching to ' + pageName);
     fetch(baseUrl + pageName + '.html')
         .then(response => response.text())
         .then(html => {
@@ -117,6 +121,13 @@ function handleData(data) {
         case 'MESSAGE':
             displayMessage(args);
             break;
+        case 'RTT':
+            conn.send(packageData('RTT_ANS', { time: args.time }));
+            break;
+        case 'RTT_ANS':
+            const rtt = Date.now() - args.time;
+            console.log('RTT: ' + rtt + 'ms');
+            break;
         case 'INIT':
             myRole = 'second';
             otherRole = 'main';
@@ -150,8 +161,8 @@ if(window.location.href.includes('github')) {
     switch2('connection');
 } else {
     baseUrl = 'http://localhost:8000/co-op/';
-    //switch2('connection');
-    switch2('qwixx');
+    switch2('connection');
+    //switch2('qwixx');
     myRole = 'main';
     myName = 'Player 1';
     otherRole = 'second';

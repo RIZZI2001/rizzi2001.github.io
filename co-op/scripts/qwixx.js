@@ -19,12 +19,44 @@ window.back2Selection = function() {
     switch2('selection');
 }
 
+window.endTurn = function() {
+    if(GAME_STATE.myState !== 'miss' && GAME_STATE.myState !== 'usedWhites' && GAME_STATE.myState !== 'usedColored' && GAME_STATE.myState !== 'usedBoth') {
+        return;
+    }
+    GAME_STATE.myState = 'otherTurn';
+    GAME_STATE.currentPlayer = (GAME_STATE.currentPlayer === 'main') ? 'second' : 'main';
+    updateTurnIndicator();
+    conn.send(packageData('END_TURN', {}));
+}
+
 window.communication = function(command, args) {
     switch(command) {
         case 'INIT_GAME':
-            GAME_STATE = args.GAME_STATE;
-            init();
+            console.log('Received INIT command with args:', args);
+            initLogic(args.currentPlayer);
             break;
+        case 'ROLL_DICE':
+            GAME_STATE.diceValues = args.diceValues;
+            animateDice();
+            GAME_STATE.myState = 'otherDiceRolled';
+            break;
+        case 'CLICK_NUMBER':
+            const { id, row, number } = args;
+            scene.boards.otherBoard[row][id].style.backgroundImage = 'url("img/crossed.png")';
+            GAME_STATE.otherBoardValues[row.replace('-row', '')].push(number);
+            break;
+        case 'CLICK_MISS':
+            GAME_STATE.otherBoardValues.misses = args.misses;
+            scene.boards.otherBoard['info&miss'][GAME_STATE.otherBoardValues.misses - 1].style.backgroundImage = 'url("img/crossed.png")';
+            break;
+        case 'END_TURN':
+            if(GAME_STATE.myState == 'otherDiceRolled') {
+                GAME_STATE.myState = 'myTurnNUO';
+            } else {
+                GAME_STATE.myState = 'myTurn';
+            }
+            GAME_STATE.currentPlayer = myRole;
+            updateTurnIndicator();
         case 'BACK2SELECT':
             cleanupScene();
             switch2('selection');
@@ -33,12 +65,25 @@ window.communication = function(command, args) {
 }
 
 function cleanupScene() {
+    console.log('Cleaning up Qwixx scene...');
     qwixxContainer.innerHTML = '';
     scene = {};
     GAME_STATE = {};
 }
 
-function init() {
+function updateTurnIndicator() {
+    currentPlayerIndicator.innerText = GAME_STATE.currentPlayer == myRole ? 'Your Turn' : otherName + "'s Turn";
+
+    if (GAME_STATE.currentPlayer === 'main') {
+        qwixxContainer.style.background = hexToCssColor(mainColorDark);
+        currentPlayerIndicator.style.color = hexToCssColor(mainColor);
+    } else {
+        qwixxContainer.style.background = hexToCssColor(secondColorDark);
+        currentPlayerIndicator.style.color = hexToCssColor(secondColor);
+    }
+}
+
+function initLogic(turn = null) {
     GAME_STATE = {
         diceValues: [1, 2, 3, 4, 5, 6],
         myBoardValues: {
@@ -56,8 +101,23 @@ function init() {
             blue: [],
             misses: 0,
             score: [0, 0, 0, 0, 0, 0]
-        }
+        },
+        currentPlayer: null,
+        myState: null
     };
+    if(turn == null) {
+        GAME_STATE.currentPlayer = (Math.random() < 0.5) ? 'main' : 'second';
+        conn.send(packageData('INIT_GAME', { currentPlayer: GAME_STATE.currentPlayer }));
+    } else {
+        GAME_STATE.currentPlayer = turn;
+    }
+    if(GAME_STATE.currentPlayer === myRole) {
+        GAME_STATE.myState = 'myTurn';
+    } else {
+        GAME_STATE.myState = 'otherTurn';
+    }
+    updateTurnIndicator();
+    generateQwixxUI();
 }
 
 function generateQwixxUI() {
@@ -68,11 +128,14 @@ function generateQwixxUI() {
             otherBoard: null
         },
     };
+
+    const maxHeight = Math.min(window.innerHeight, window.innerWidth / 1.4);
+
     function newBoard(buttons = true) {
         let sceneBoard = {};
 
         const board = document.createElement('div');
-        const boardHeight = window.innerHeight/2 - 20;
+        const boardHeight = maxHeight/2 - 20;
         const boardWidth = boardHeight * 1.72;
 
         board.style.height = `${boardHeight}px`;
@@ -213,7 +276,7 @@ function generateQwixxUI() {
                         scoreDiv.style.border = `3px solid #000000`;
                         scoreDiv.style.width = `${rowHeight + 40}px`;
                     }
-                    scoreDiv.innerText = '0';
+                    scoreDiv.innerText = '';
                     scoreDiv.id = `score-${i}`;
                     const clone = scoreDiv.cloneNode(true);
                     rowDiv.appendChild(clone);
@@ -223,14 +286,13 @@ function generateQwixxUI() {
             board.appendChild(rowDiv);
             sceneBoard[rows[row_index]] = sceneRow;
         });
-        //console.log(sceneBoard);
         return {board, sceneBoard};
     }
 
     //dice
     const diceContainer = document.createElement('div');
     diceContainer.className = 'qwixx-dice-container';
-    const diceContainerHeight = window.innerHeight / 2 - 20;
+    const diceContainerHeight = maxHeight / 2 - 20;
     const diceContainerWidth = diceContainerHeight / 2;
     diceContainer.style.height = `${diceContainerHeight}px`;
     diceContainer.style.width = `${diceContainerWidth}px`;
@@ -258,11 +320,7 @@ function generateQwixxUI() {
     rollButton.className = 'qwixx-roll-button';
     rollButton.innerText = 'Roll Dice';
     rollButton.addEventListener('click', function() {
-        for(let i = 0; i < 6; i++) {
-            GAME_STATE.diceValues[i] = Math.floor(Math.random() * 6) + 1;
-        }
-        animateDice();
-        console.log('Dice rolled:', GAME_STATE.diceValues);
+        rollDice();
     });
     diceContainer.appendChild(rollButton);
 
@@ -276,7 +334,7 @@ function generateQwixxUI() {
     otherboardContainer.className = 'qwixx-board-container';
     otherboardContainer.innerText = otherName;
     otherboardContainer.style.backgroundColor = hexToCssColor(otherColor('semi-dark'));
-    otherboardContainer.style.width = `${(window.innerHeight / 2) * 1.72 + 100}px`;
+    otherboardContainer.style.width = `${(maxHeight / 2) * 1.72 + 100}px`;
     const {board: otherBoard, sceneBoard: otherBoardScene} = newBoard(false);
     scene.boards.otherBoard = otherBoardScene;
     otherBoard.id = 'other-board';
@@ -290,7 +348,7 @@ function generateQwixxUI() {
     myboardContainer.style.width = `${otherboardContainer.offsetWidth}px`;
     const {board: myBoard, sceneBoard: myBoardScene} = newBoard(true);
     scene.boards.myBoard = myBoardScene;
-    myBoard.id = 'your-board';
+    myBoard.id = 'my-board';
     myboardContainer.appendChild(myBoard);
     boardsContainer.appendChild(myboardContainer);
 
@@ -314,8 +372,26 @@ function animateDice() {
     }, 100);
 }
 
+function rollDice() {
+    if(GAME_STATE.myState !== 'myTurn' && GAME_STATE.myState !== 'myTurnNUO') {
+        return;
+    }
+    for(let i = 0; i < 6; i++) {
+        GAME_STATE.diceValues[i] = Math.floor(Math.random() * 6) + 1;
+    }
+    conn.send(packageData('ROLL_DICE', { diceValues: GAME_STATE.diceValues }));
+    animateDice();
+    GAME_STATE.myState = 'myDiceRolled';
+}
+
 function clickMiss() {
-    console.log('Miss clicked');
+    if(GAME_STATE.myState !== 'myDiceRolled' || GAME_STATE.myBoardValues.misses >= 4) {
+        return;
+    }
+    GAME_STATE.myBoardValues.misses++;
+    GAME_STATE.myState = 'miss';
+    scene.boards.myBoard['info&miss'][GAME_STATE.myBoardValues.misses - 1].style.backgroundImage = 'url("img/crossed.png")';
+    conn.send(packageData('CLICK_MISS', { misses: GAME_STATE.myBoardValues.misses }));
 }
 
 function clickNumber(number, row) {
@@ -324,11 +400,14 @@ function clickNumber(number, row) {
         id = 12 - number;
     }
     scene.boards.myBoard[row][id].style.backgroundImage = 'url("img/crossed.png")';
+    GAME_STATE.myBoardValues[row.replace('-row', '')].push(number);
+    conn.send(packageData('CLICK_NUMBER', { id: id, row: row, number: number }));
     console.log(`Number ${number} clicked in row ${row}`);
 }
 
-init();
-generateQwixxUI();
+if(myRole === 'main') {
+    initLogic();
+}
 
 }
 startQwixx();

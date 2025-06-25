@@ -149,6 +149,9 @@
     margin-left: 4px;
     margin-bottom: 2px;
     border-radius: 2px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
 }
 
 .qwixx-miss-button {
