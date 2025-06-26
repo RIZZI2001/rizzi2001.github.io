@@ -20,7 +20,7 @@
         },
         {
             title: 'Qwixx',
-            image: 'skyjo.png',
+            image: 'qwixx.png',
             link: 'qwixx'
         }
     ];

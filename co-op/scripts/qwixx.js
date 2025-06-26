@@ -6,9 +6,7 @@ const qwixxContainer = document.getElementById('qwixx-container');
 
 const colors = ['#d73f4c', '#fee44a', '#419f5b', '#394a8b', '#e3e3e3', '#bdbdbd'];
 const rows = ['red-row', 'yellow-row', 'green-row', 'blue-row', 'info&miss', 'score_row'];
-
-//VALUES
-
+const points = [0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78];
 
 let scene = {};
 
@@ -24,14 +22,63 @@ window.endTurn = function() {
     if(GAME_STATE.myState !== 'miss' && GAME_STATE.myState !== 'usedWhites' && GAME_STATE.myState !== 'usedColored' && GAME_STATE.myState !== 'usedBoth' && GAME_STATE.myState !== 'usedArbitrary') {
         return;
     }
+
+    //Test for game end
+    if(GAME_STATE.forbiddenColors.length === 2) {
+        allScores = calculateScores();
+        for(let i = 0; i < 6; i++) {
+            scene.boards.myBoard['score_row'][i].innerText = allScores[i];
+        }
+        conn.send(packageData('END_GAME', { scores: allScores }));
+        return;
+    }
+
     GAME_STATE.myState = 'otherTurn';
+    GAME_STATE.actionsStack = [];
     GAME_STATE.currentPlayer = (GAME_STATE.currentPlayer === 'main') ? 'second' : 'main';
     updateTurnIndicator();
     conn.send(packageData('END_TURN', {}));
 }
 
-window.undo = function() {
+document.addEventListener('keydown', function(event) {
+    if(event.key === 'l' || event.key === 'L') {
+        if(GAME_STATE.myState !== 'myTurn' && GAME_STATE.myState !== 'myTurnNUO') {
+            return;
+        }
+        GAME_STATE.diceValues = [6, 6, 1, 1, 6, 1];
+        conn.send(packageData('ROLL_DICE', { diceValues: GAME_STATE.diceValues }));
+        animateDice();
+        GAME_STATE.myState = 'myDiceRolled';
+        }
+});
 
+window.undo = function() {
+    if(GAME_STATE.actionsStack.length === 0) {
+        return;
+    }
+    const lastAction = GAME_STATE.actionsStack.pop();
+    console.log('Undoing action:', lastAction);
+    
+    if(lastAction.row === 'info&miss') {
+        GAME_STATE.myBoardValues.misses--;
+        scene.boards.myBoard['info&miss'][lastAction.number].style.backgroundImage = '';
+    } else {
+        const id = num2id(lastAction.number, lastAction.row);
+        const rowValues = GAME_STATE.myBoardValues[lastAction.row.replace('-row', '')];
+        rowValues.pop();
+        scene.boards.myBoard[lastAction.row][id].style.backgroundImage = '';
+        if(id == 11) {
+            const colorIndex = rows.indexOf(lastAction.row);
+            scene.dice[colorIndex].style.backgroundColor = colors[colorIndex];
+            const forbiddenColorIndex = GAME_STATE.forbiddenColors.indexOf(lastAction.row.replace('-row', ''));
+            if(forbiddenColorIndex !== -1) {
+                GAME_STATE.forbiddenColors.splice(forbiddenColorIndex, 1);
+            }
+        }
+    }
+    
+    conn.send(packageData('UNDO_ACTION', { action: lastAction }));
+    GAME_STATE.myState = lastAction.oldState;
 }
 
 window.communication = function(command, args) {
@@ -48,11 +95,29 @@ window.communication = function(command, args) {
         case 'CLICK_NUMBER':
             const { id, row, number } = args;
             scene.boards.otherBoard[row][id].style.backgroundImage = 'url("img/crossed.png")';
-            GAME_STATE.otherBoardValues[row.replace('-row', '')].push(number);
+            if(id == 11) {
+                GAME_STATE.forbiddenColors.push(row.replace('-row', ''));
+                scene.dice[rows.indexOf(row)].style.backgroundColor = '#4a4a4a'; // Disable the colored dice
+                scene.dice[rows.indexOf(row)].style.backgroundImage = 'none';
+            }
             break;
         case 'CLICK_MISS':
-            GAME_STATE.otherBoardValues.misses = args.misses;
-            scene.boards.otherBoard['info&miss'][GAME_STATE.otherBoardValues.misses - 1].style.backgroundImage = 'url("img/crossed.png")';
+            scene.boards.otherBoard['info&miss'][args.misses - 1].style.backgroundImage = 'url("img/crossed.png")';
+            break;
+        case 'UNDO_ACTION':
+            const undoAction = args.action;
+            console.log('Undoing action from other player:', undoAction);
+            if(undoAction.row === 'info&miss') {
+                scene.boards.otherBoard['info&miss'][undoAction.number].style.backgroundImage = '';
+            } else {
+                const id = num2id(undoAction.number, undoAction.row);
+                scene.boards.otherBoard[undoAction.row][id].style.backgroundImage = '';
+                if(id == 11) {
+                    const colorIndex = rows.indexOf(undoAction.row);
+                    scene.dice[colorIndex].style.backgroundColor = colors[colorIndex];
+                    GAME_STATE.forbiddenColors.splice(colorIndex, 1);
+                }
+            }
             break;
         case 'END_TURN':
             if(GAME_STATE.myState == 'otherDiceRolled') {
@@ -63,11 +128,76 @@ window.communication = function(command, args) {
             GAME_STATE.currentPlayer = myRole;
             updateTurnIndicator();
             break;
+        case 'END_GAME':
+            const allScores = args.scores;
+            for(let i = 0; i < 6; i++) {
+                scene.boards.otherBoard['score_row'][i].innerText = allScores[i];
+            }
+            let myScores = calculateScores();
+            for(let i = 0; i < 6; i++) {
+                scene.boards.myBoard['score_row'][i].innerText = myScores[i];
+            }
+            let winnerText, winnerColor;
+            if(myScores[5] > allScores[5]) {
+                winnerText = `${myName} Wins! ${myScores[5]} to ${allScores[5]}.`;
+                winnerColor = hexToCssColor(myColor());
+            } else if(myScores[5] < allScores[5]) {
+                winnerText = `${otherName} Wins! ${allScores[5]} to ${myScores[5]}.`;
+                winnerColor = hexToCssColor(otherColor());
+            } else {
+                winnerText = `It\'s a Tie! Both have ${myScores[5]} points.`;
+            }
+            winnerIndicator.innerText = winnerText;
+            winnerIndicator.style.color = winnerColor;
+            winnerIndicator.style.display = 'block';
+            conn.send(packageData('END_GAME_ANS', { scores: myScores, winnerText: winnerText, winnerColor: winnerColor }));
+            break;
+        case 'END_GAME_ANS':
+            const otherScores = args.scores;
+            for(let i = 0; i < 6; i++) {
+                scene.boards.otherBoard['score_row'][i].innerText = otherScores[i];
+            }
+            winnerIndicator.innerText = args.winnerText;
+            winnerIndicator.style.color = args.winnerColor;
+            winnerIndicator.style.display = 'block';
+            break;
         case 'BACK2SELECT':
             cleanupScene();
             switch2('selection');
             break;
     }
+}
+
+function calculateScores() {
+    let allScores = [];
+    let totalScore = 0;
+    for(let i = 0; i < 4; i++) {
+        const score = points[GAME_STATE.myBoardValues[rows[i].replace('-row', '')].length];
+        totalScore += score;
+        allScores.push(score);
+    }
+    const misses = GAME_STATE.myBoardValues.misses;
+    const missScore = misses * -5;
+    totalScore += missScore;
+    allScores.push(missScore);
+    allScores.push(totalScore);
+    return allScores;
+}
+
+function num2id(number, row) {
+    let id = number - 2;
+    if(row === 'green-row' || row === 'blue-row') {
+        id = 12 - number;
+    }
+    return id;
+}
+
+function id2num(id, row) {
+    let number = id + 2;
+    if(row === 'green-row' || row === 'blue-row') {
+        number = 12 - id;
+    }
+    return number;
 }
 
 function cleanupScene() {
@@ -97,19 +227,12 @@ function initLogic(turn = null) {
             yellow: [],
             green: [],
             blue: [],
-            misses: 0,
-            score: [0, 0, 0, 0, 0, 0]
-        },
-        otherBoardValues: {
-            red: [],
-            yellow: [],
-            green: [],
-            blue: [],
-            misses: 0,
-            score: [0, 0, 0, 0, 0, 0]
+            misses: 0
         },
         currentPlayer: null,
-        myState: null
+        myState: null,
+        actionsStack: [],
+        forbiddenColors: []
     };
     if(turn == null) {
         GAME_STATE.currentPlayer = (Math.random() < 0.5) ? 'main' : 'second';
@@ -206,7 +329,6 @@ function generateQwixxUI() {
                 infoDiv.innerText = `Crosses\nPoints`;
                 rowDiv.appendChild(infoDiv);
 
-                value = 1;
                 for(let i = 1; i <= 12; i++) {
                     infoDiv = document.createElement('div');
                     infoDiv.className = 'qwixx-info-div';
@@ -214,8 +336,7 @@ function generateQwixxUI() {
                     infoDiv.style.height = `${rowHeight - 10}px`;
                     infoDiv.style.backgroundColor = lightColors[row_index];
                     infoDiv.style.border = `3px solid ${darkColors[row_index]}`;
-                    infoDiv.innerText = `${i}x \n ${value}`;
-                    value += (i+1);
+                    infoDiv.innerText = `${i}x \n ${points[i]}`;
                     rowDiv.appendChild(infoDiv);
                 }
 
@@ -365,12 +486,18 @@ function animateDice() {
     const interval = setInterval(() => {
         for(let i = 0; i < 6; i++) {
             const randomValue = Math.floor(Math.random() * 6) + 1;
+            if(GAME_STATE.forbiddenColors.includes(rows[i].replace('-row', ''))) {
+                continue; // Skip forbidden colors
+            }
             scene.dice[i].style.backgroundImage = `url('img/dice_${randomValue}.png')`;
         }
         count++;
         if(count === 6) {
             clearInterval(interval);
             for(let i = 0; i < 6; i++) {
+                if(GAME_STATE.forbiddenColors.includes(rows[i].replace('-row', ''))) {
+                    continue; // Skip forbidden colors
+                }
                 scene.dice[i].style.backgroundImage = `url('img/dice_${GAME_STATE.diceValues[i]}.png')`;
             }
         }
@@ -387,6 +514,7 @@ function rollDice() {
     conn.send(packageData('ROLL_DICE', { diceValues: GAME_STATE.diceValues }));
     animateDice();
     GAME_STATE.myState = 'myDiceRolled';
+    GAME_STATE.actionsStack = [];
 }
 
 function clickMiss() {
@@ -394,16 +522,16 @@ function clickMiss() {
         return;
     }
     GAME_STATE.myBoardValues.misses++;
+    GAME_STATE.actionsStack.push({ row: 'info&miss', number: GAME_STATE.myBoardValues.misses - 1, oldState: GAME_STATE.myState });
+    console.log('Actions stack:', GAME_STATE.actionsStack);
+
     GAME_STATE.myState = 'miss';
     scene.boards.myBoard['info&miss'][GAME_STATE.myBoardValues.misses - 1].style.backgroundImage = 'url("img/crossed.png")';
     conn.send(packageData('CLICK_MISS', { misses: GAME_STATE.myBoardValues.misses }));
 }
 
 function clickNumber(number, row) {
-    let id = number - 2;
-    if(row === 'green-row' || row === 'blue-row') {
-        id = 12 - number;
-    }
+    const id = num2id(number, row);
     const rowValues = GAME_STATE.myBoardValues[row.replace('-row', '')];
     const lastValue = rowValues[rowValues.length - 1] || 0;
 
@@ -412,63 +540,93 @@ function clickNumber(number, row) {
         console.warn(`Cannot click number ${number} in row ${row} because it is smaller than the last clicked number.`);
         return;
     }
+    // Check if color is forbidden
+    if(GAME_STATE.forbiddenColors.includes(row.replace('-row', ''))) {
+        console.warn(`Cannot click number ${number} in row ${row} because the color is forbidden.`);
+        return;
+    }
 
     const white1 = GAME_STATE.diceValues[4];
     const white2 = GAME_STATE.diceValues[5];
     const coloredDiceValue = GAME_STATE.diceValues[rows.indexOf(row)];
 
-    if(GAME_STATE.myState === 'myTurnNUO' || GAME_STATE.myState === 'otherDiceRolled' || GAME_STATE.myState === 'usedColored') {
-        // Possible to use the white dice
-        if(white1 + white2 !== number) {
-            console.warn(`Cannot click number ${number} in row ${row} because it does not match the rolled dice value.`);
+    const oldState = GAME_STATE.myState;
+
+    if(id == 11) {
+        // Clicked the lock
+        
+        // Check if at least 5 numbers are crossed in the row
+        if(rowValues.length < 5) {
+            console.warn(`Cannot click lock in row ${row} because less than 5 numbers are crossed.`);
+            return;
+        }
+        // Check if id 10 was crossed this turn
+        if(!rowValues.includes(id2num(10, row))) {
+            console.warn(`Cannot click lock in row ${row} because id 10 wasn't crossed this turn.`);
             return;
         }
 
-        // state transition
-        if(GAME_STATE.myState === 'myTurnNUO') {
-            GAME_STATE.myState = 'myTurn';
-        } else if (GAME_STATE.myState === 'otherDiceRolled') {
-            GAME_STATE.myState = 'usedOther';
-        } else if (GAME_STATE.myState === 'usedColored') {
-            GAME_STATE.myState = 'usedBoth';
-        }
-    } else if(GAME_STATE.myState === 'usedWhites') {
-        // Possible to use the colored dice
-        if(coloredDiceValue + white1 !== number && coloredDiceValue + white2 !== number) {
-            console.warn(`Cannot click number ${number} in row ${row} because it does not match the rolled colored dice value.`);
-            return;
-        }
-
-        // state transition
-        GAME_STATE.myState = 'usedBoth';
-    } else if(GAME_STATE.myState === 'myDiceRolled') {
-        // Still able to use white and colored dice
-        if(coloredDiceValue + white1 == number || coloredDiceValue + white2 == number) {
-            // Possible to use the colored dice
-            if(white1 + white2 == number) {
-                // Also possible to use the white dice
-                // state transition
-                GAME_STATE.myState = 'usedArbitrary';
-            } else {
-                // state transition
-                GAME_STATE.myState = 'usedColored';
-            }
-        } else if(white1 + white2 == number) {
-            // state transition
-            GAME_STATE.myState = 'usedWhites';
-        } else {
-            console.warn(`Cannot click number ${number} in row ${row} because it does not match the rolled dice value.`);
-            return;
-        }
-    } else if(GAME_STATE.myState === 'usedArbitrary') {
-        if(coloredDiceValue + white1 == number || coloredDiceValue + white2 == number || white1 + white2 == number) {
-            // Possible to use the colored dice or white dice
-            // state transition
-            GAME_STATE.myState = 'usedBoth';
-        }
+        GAME_STATE.forbiddenColors.push(row.replace('-row', ''));
+        scene.dice[rows.indexOf(row)].style.backgroundColor = '#4a4a4a'; // Disable the colored dice
+        scene.dice[rows.indexOf(row)].style.backgroundImage = 'none';
     } else {
-        return; // Invalid state
+
+        if(GAME_STATE.myState === 'myTurnNUO' || GAME_STATE.myState === 'otherDiceRolled' || GAME_STATE.myState === 'usedColored') {
+            // Possible to use the white dice
+            if(white1 + white2 !== number) {
+                console.warn(`Cannot click number ${number} in row ${row} because it does not match the rolled dice value.`);
+                return;
+            }
+            
+            // state transition
+            if(GAME_STATE.myState === 'myTurnNUO') {
+                GAME_STATE.myState = 'myTurn';
+            } else if (GAME_STATE.myState === 'otherDiceRolled') {
+                GAME_STATE.myState = 'usedOther';
+            } else if (GAME_STATE.myState === 'usedColored') {
+                GAME_STATE.myState = 'usedBoth';
+            }
+        } else if(GAME_STATE.myState === 'usedWhites') {
+            // Possible to use the colored dice
+            if(coloredDiceValue + white1 !== number && coloredDiceValue + white2 !== number) {
+                console.warn(`Cannot click number ${number} in row ${row} because it does not match the rolled colored dice value.`);
+                return;
+            }
+
+            // state transition
+            GAME_STATE.myState = 'usedBoth';
+        } else if(GAME_STATE.myState === 'myDiceRolled') {
+            // Still able to use white and colored dice
+            if(coloredDiceValue + white1 == number || coloredDiceValue + white2 == number) {
+                // Possible to use the colored dice
+                if(white1 + white2 == number) {
+                    // Also possible to use the white dice
+                    // state transition
+                    GAME_STATE.myState = 'usedArbitrary';
+                } else {
+                    // state transition
+                    GAME_STATE.myState = 'usedColored';
+                }
+            } else if(white1 + white2 == number) {
+                // state transition
+                GAME_STATE.myState = 'usedWhites';
+            } else {
+                console.warn(`Cannot click number ${number} in row ${row} because it does not match the rolled dice value.`);
+                return;
+            }
+        } else if(GAME_STATE.myState === 'usedArbitrary') {
+            if(coloredDiceValue + white1 == number || coloredDiceValue + white2 == number || white1 + white2 == number) {
+                // Possible to use the colored dice or white dice
+                // state transition
+                GAME_STATE.myState = 'usedBoth';
+            }
+        } else {
+            return; // Invalid state
+        }
     }
+
+    GAME_STATE.actionsStack.push({ row: row, number: number, oldState: oldState });
+    console.log('Actions stack:', GAME_STATE.actionsStack);
 
     scene.boards.myBoard[row][id].style.backgroundImage = 'url("img/crossed.png")';
     GAME_STATE.myBoardValues[row.replace('-row', '')].push(number);
