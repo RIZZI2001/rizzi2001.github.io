@@ -232,7 +232,8 @@ function initLogic(turn = null) {
         currentPlayer: null,
         myState: null,
         actionsStack: [],
-        forbiddenColors: []
+        forbiddenColors: [],
+        diceRolls: 0
     };
     if(turn == null) {
         GAME_STATE.currentPlayer = (Math.random() < 0.5) ? 'main' : 'second';
@@ -505,7 +506,7 @@ function animateDice() {
 }
 
 function rollDice() {
-    if(GAME_STATE.myState !== 'myTurn' && GAME_STATE.myState !== 'myTurnNUO') {
+    if(GAME_STATE.myState !== 'myTurn' && GAME_STATE.myState !== 'myTurnNUO' && GAME_STATE.diceRolls !== 1) {
         return;
     }
     for(let i = 0; i < 6; i++) {
@@ -513,6 +514,7 @@ function rollDice() {
     }
     conn.send(packageData('ROLL_DICE', { diceValues: GAME_STATE.diceValues }));
     animateDice();
+    GAME_STATE.diceRolls++;
     GAME_STATE.myState = 'myDiceRolled';
     GAME_STATE.actionsStack = [];
 }
