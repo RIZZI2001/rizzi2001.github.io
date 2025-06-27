@@ -24,7 +24,7 @@ window.endTurn = function() {
     }
 
     //Test for game end
-    if(GAME_STATE.forbiddenColors.length === 2) {
+    if(GAME_STATE.forbiddenColors.length === 2 || GAME_STATE.myBoardValues.misses === 4) {
         allScores = calculateScores();
         for(let i = 0; i < 6; i++) {
             scene.boards.myBoard['score_row'][i].innerText = allScores[i];
@@ -49,7 +49,10 @@ document.addEventListener('keydown', function(event) {
         conn.send(packageData('ROLL_DICE', { diceValues: GAME_STATE.diceValues }));
         animateDice();
         GAME_STATE.myState = 'myDiceRolled';
-        }
+    }
+    if(event.key === 'u' || event.key === 'U') {
+        console.log('GAME_STATE: ', GAME_STATE);
+    }
 });
 
 window.undo = function() {
@@ -115,7 +118,10 @@ window.communication = function(command, args) {
                 if(id == 11) {
                     const colorIndex = rows.indexOf(undoAction.row);
                     scene.dice[colorIndex].style.backgroundColor = colors[colorIndex];
-                    GAME_STATE.forbiddenColors.splice(colorIndex, 1);
+                    const forbiddenColorIndex = GAME_STATE.forbiddenColors.indexOf(lastAction.row.replace('-row', ''));
+                    if(forbiddenColorIndex !== -1) {
+                        GAME_STATE.forbiddenColors.splice(forbiddenColorIndex, 1);
+                    }
                 }
             }
             break;
