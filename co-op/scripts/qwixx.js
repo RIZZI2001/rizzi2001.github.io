@@ -23,6 +23,8 @@ window.endTurn = function() {
         return;
     }
 
+    forbidCrossedColors();
+
     //Test for game end
     if(GAME_STATE.forbiddenColors.length === 2 || GAME_STATE.myBoardValues.misses === 4) {
         allScores = calculateScores();
@@ -37,6 +39,7 @@ window.endTurn = function() {
     GAME_STATE.actionsStack = [];
     GAME_STATE.currentPlayer = (GAME_STATE.currentPlayer === 'main') ? 'second' : 'main';
     updateTurnIndicator();
+
     conn.send(packageData('END_TURN', {}));
 }
 
@@ -73,9 +76,10 @@ window.undo = function() {
         if(id == 11) {
             const colorIndex = rows.indexOf(lastAction.row);
             scene.dice[colorIndex].style.backgroundColor = colors[colorIndex];
-            const forbiddenColorIndex = GAME_STATE.forbiddenColors.indexOf(lastAction.row.replace('-row', ''));
-            if(forbiddenColorIndex !== -1) {
-                GAME_STATE.forbiddenColors.splice(forbiddenColorIndex, 1);
+            scene.dice[colorIndex].style.backgroundImage = `url('img/dice_${GAME_STATE.diceValues[colorIndex]}.png')`;
+            const crossedColorIndex = GAME_STATE.crossedColors.indexOf(lastAction.row.replace('-row', ''));
+            if(crossedColorIndex !== -1) {
+                GAME_STATE.crossedColors.splice(crossedColorIndex, 1);
             }
         }
     }
@@ -99,9 +103,7 @@ window.communication = function(command, args) {
             const { id, row, number } = args;
             scene.boards.otherBoard[row][id].style.backgroundImage = 'url("img/crossed.png")';
             if(id == 11) {
-                GAME_STATE.forbiddenColors.push(row.replace('-row', ''));
-                scene.dice[rows.indexOf(row)].style.backgroundColor = '#4a4a4a'; // Disable the colored dice
-                scene.dice[rows.indexOf(row)].style.backgroundImage = 'none';
+                GAME_STATE.crossedColors.push(row.replace('-row', ''));
             }
             break;
         case 'CLICK_MISS':
@@ -118,9 +120,10 @@ window.communication = function(command, args) {
                 if(id == 11) {
                     const colorIndex = rows.indexOf(undoAction.row);
                     scene.dice[colorIndex].style.backgroundColor = colors[colorIndex];
-                    const forbiddenColorIndex = GAME_STATE.forbiddenColors.indexOf(lastAction.row.replace('-row', ''));
-                    if(forbiddenColorIndex !== -1) {
-                        GAME_STATE.forbiddenColors.splice(forbiddenColorIndex, 1);
+                    scene.dice[colorIndex].style.backgroundImage = `url('img/dice_${GAME_STATE.diceValues[colorIndex]}.png')`;
+                    const crossedColorIndex = GAME_STATE.crossedColors.indexOf(undoAction.row.replace('-row', ''));
+                    if(crossedColorIndex !== -1) {
+                        GAME_STATE.crossedColors.splice(crossedColorIndex, 1);
                     }
                 }
             }
@@ -133,6 +136,8 @@ window.communication = function(command, args) {
             }
             GAME_STATE.currentPlayer = myRole;
             updateTurnIndicator();
+
+            forbidCrossedColors();
             break;
         case 'END_GAME':
             const allScores = args.scores;
@@ -171,6 +176,21 @@ window.communication = function(command, args) {
             cleanupScene();
             switch2('selection');
             break;
+    }
+}
+
+function forbidCrossedColors() {
+    if(GAME_STATE.crossedColors.length > GAME_STATE.forbiddenColors.length) {
+        // Add the crossed colors to the forbidden colors
+        for(let color of GAME_STATE.crossedColors) {
+            if(!GAME_STATE.forbiddenColors.includes(color)) {
+                GAME_STATE.forbiddenColors.push(color);
+                const row = color + '-row';
+                // Disable the colored dice
+                scene.dice[rows.indexOf(row)].style.backgroundColor = '#4a4a4a'; // Disable the colored dice
+                scene.dice[rows.indexOf(row)].style.backgroundImage = 'none';
+            }
+        }
     }
 }
 
@@ -238,6 +258,7 @@ function initLogic(turn = null) {
         currentPlayer: null,
         myState: null,
         actionsStack: [],
+        crossedColors: [],
         forbiddenColors: [],
         diceRolls: 0
     };
@@ -564,19 +585,22 @@ function clickNumber(number, row) {
         // Clicked the lock
         
         // Check if at least 5 numbers are crossed in the row
-        if(rowValues.length < 5) {
+        /* if(rowValues.length < 5) {
             console.warn(`Cannot click lock in row ${row} because less than 5 numbers are crossed.`);
             return;
-        }
+        } */
         // Check if id 10 was crossed this turn
         if(!rowValues.includes(id2num(10, row))) {
             console.warn(`Cannot click lock in row ${row} because id 10 wasn't crossed this turn.`);
             return;
         }
+        // Check if the row is already crossed
+        if(GAME_STATE.crossedColors.includes(row.replace('-row', ''))) {
+            console.warn(`Cannot click lock in row ${row} because it is already crossed.`);
+            return;
+        }
 
-        GAME_STATE.forbiddenColors.push(row.replace('-row', ''));
-        scene.dice[rows.indexOf(row)].style.backgroundColor = '#4a4a4a'; // Disable the colored dice
-        scene.dice[rows.indexOf(row)].style.backgroundImage = 'none';
+        GAME_STATE.crossedColors.push(row.replace('-row', ''));
     } else {
 
         if(GAME_STATE.myState === 'myTurnNUO' || GAME_STATE.myState === 'otherDiceRolled' || GAME_STATE.myState === 'usedColored') {
