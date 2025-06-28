@@ -45,6 +45,7 @@ window.endTurn = function() {
 
 document.addEventListener('keydown', function(event) {
     if(event.key === 'l' || event.key === 'L') {
+        return;
         if(GAME_STATE.myState !== 'myTurn' && GAME_STATE.myState !== 'myTurnNUO') {
             return;
         }
@@ -585,10 +586,10 @@ function clickNumber(number, row) {
         // Clicked the lock
         
         // Check if at least 5 numbers are crossed in the row
-        /* if(rowValues.length < 5) {
+        if(rowValues.length < 5) {
             console.warn(`Cannot click lock in row ${row} because less than 5 numbers are crossed.`);
             return;
-        } */
+        }
         // Check if id 10 was crossed this turn
         if(!rowValues.includes(id2num(10, row))) {
             console.warn(`Cannot click lock in row ${row} because id 10 wasn't crossed this turn.`);
