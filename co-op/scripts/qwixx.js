@@ -20,18 +20,20 @@ window.back2Selection = function() {
 
 window.endTurn = function() {
     if(GAME_STATE.myState !== 'miss' && GAME_STATE.myState !== 'usedWhites' && GAME_STATE.myState !== 'usedColored' && GAME_STATE.myState !== 'usedBoth' && GAME_STATE.myState !== 'usedArbitrary') {
-        return;
-    }
-
-    forbidCrossedColors();
-
-    //Test for game end
-    if(GAME_STATE.forbiddenColors.length === 2 || GAME_STATE.myBoardValues.misses === 4) {
-        allScores = calculateScores();
-        for(let i = 0; i < 6; i++) {
-            scene.boards.myBoard['score_row'][i].innerText = allScores[i];
+        if(GAME_STATE.myState == 'myTurn' || GAME_STATE.myState == 'myTurnNUO') {
+            // Confirm Game End
+            forbidCrossedColors();
+            
+            //Test for game end
+            if(GAME_STATE.forbiddenColors.length === 2 || GAME_STATE.myBoardValues.misses === 4) {
+                allScores = calculateScores();
+                for(let i = 0; i < 6; i++) {
+                    scene.boards.myBoard['score_row'][i].innerText = allScores[i];
+                }
+                conn.send(packageData('END_GAME', { scores: allScores }));
+                return;
+            }
         }
-        conn.send(packageData('END_GAME', { scores: allScores }));
         return;
     }
 
@@ -96,6 +98,7 @@ window.communication = function(command, args) {
             initLogic(args.currentPlayer);
             break;
         case 'ROLL_DICE':
+            forbidCrossedColors();
             GAME_STATE.diceValues = args.diceValues;
             animateDice();
             GAME_STATE.myState = 'otherDiceRolled';
@@ -137,8 +140,6 @@ window.communication = function(command, args) {
             }
             GAME_STATE.currentPlayer = myRole;
             updateTurnIndicator();
-
-            forbidCrossedColors();
             break;
         case 'END_GAME':
             const allScores = args.scores;
@@ -537,6 +538,9 @@ function rollDice() {
     if(GAME_STATE.myState !== 'myTurn' && GAME_STATE.myState !== 'myTurnNUO' && GAME_STATE.diceRolls !== 1) {
         return;
     }
+
+    forbidCrossedColors();
+
     for(let i = 0; i < 6; i++) {
         GAME_STATE.diceValues[i] = Math.floor(Math.random() * 6) + 1;
     }
