@@ -656,6 +656,9 @@ function clickNumber(number, row) {
                 // Possible to use the colored dice or white dice
                 // state transition
                 GAME_STATE.myState = 'usedBoth';
+            } else {
+                console.warn(`Cannot click number ${number} in row ${row} because it does not match the rolled dice value.`);
+                return;
             }
         } else {
             return; // Invalid state
