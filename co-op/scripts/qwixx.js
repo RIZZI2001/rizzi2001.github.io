@@ -28,7 +28,7 @@ window.endTurn = function() {
             if(GAME_STATE.forbiddenColors.length === 2 || GAME_STATE.myBoardValues.misses === 4) {
                 allScores = calculateScores();
                 for(let i = 0; i < 6; i++) {
-                    scene.boards.myBoard['score_row'][i].innerText = allScores[i];
+                    scene.boards.myBoard['score_row'][i].innerText = Math.abs(allScores[i]);
                 }
                 conn.send(packageData('END_GAME', { scores: allScores }));
                 return;
@@ -148,7 +148,7 @@ window.communication = function(command, args) {
             }
             let myScores = calculateScores();
             for(let i = 0; i < 6; i++) {
-                scene.boards.myBoard['score_row'][i].innerText = myScores[i];
+                scene.boards.myBoard['score_row'][i].innerText = Math.abs(myScores[i]);
             }
             let winnerText, winnerColor;
             if(myScores[5] > allScores[5]) {

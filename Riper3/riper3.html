@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Riper3</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        #canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <!-- Physics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/4.2.0/cannon.min.js"></script>
+    
+    <!-- Core Scripts -->
+    <script src="core/math.js"></script>
+    <script src="core/scene.js"></script>
+    <script src="core/renderer.js"></script>
+    
+    <!-- Initialize -->
+    <script>
+        window.addEventListener('load', () => {
+            // Create renderer
+            const renderer = new Renderer();
+            if (!renderer.init()) return;
+            
+            // Create scene
+            const scene = new Scene();
+            
+            // Create a simple triangle
+            const triangle = new Object3D([
+                0.0,  0.5, 0.0,   // Top vertex
+               -0.5, -0.5, 0.0,   // Bottom left
+                0.5, -0.5, 0.0    // Bottom right
+            ]);
+            triangle.setColor(1, 0, 0, 1); // Red color
+            
+            // Create a second triangle (slightly behind and to the side)
+            const triangle2 = new Object3D([
+                0.2,  0.3, -1.0,
+               -0.3, -0.7, -1.0,
+                0.7, -0.7, -1.0
+            ]);
+            triangle2.setColor(0, 1, 0, 1); // Green color
+            
+            scene.addObject(triangle);
+            scene.addObject(triangle2);
+            
+            renderer.setScene(scene);
+            renderer.render();
+            
+            console.log('Riper3 initialized with 3D rendering pipeline');
+        });
+    </script>
+</body>
+</html>
