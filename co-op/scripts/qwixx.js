@@ -538,6 +538,9 @@ function rollDice() {
     if(GAME_STATE.myState !== 'myTurn' && GAME_STATE.myState !== 'myTurnNUO' && GAME_STATE.diceRolls !== 1) {
         return;
     }
+    if(GAME_STATE.crossedColors.length > 1 || GAME_STATE.myBoardValues.misses >= 4 || GAME_STATE.forbiddenColors.length > 1) {
+        return; // Cannot roll dice if game is over
+    }
 
     forbidCrossedColors();
 
