@@ -38,7 +38,9 @@ function createShader(gl, type, source) {
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    throw new Error(gl.getShaderInfoLog(shader));
+    const error = gl.getShaderInfoLog(shader);
+    gl.deleteShader(shader);
+    throw new Error('Shader compilation error: ' + error);
   }
   return shader;
 }
@@ -51,7 +53,9 @@ function createProgram(gl, vertSrc, fragSrc) {
   gl.attachShader(program, fShader);
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    throw new Error(gl.getProgramInfoLog(program));
+    const error = gl.getProgramInfoLog(program);
+    gl.deleteProgram(program);
+    throw new Error('Program linking error: ' + error);
   }
   return program;
 }
@@ -60,8 +64,10 @@ let currentShader = 0;
 let currentShaderCode = '';
 let worldTextures = [null, null];
 let rizziTexture;
+let treeTexture;
+let fontTexture;
 let touch = [0, 0];
-let program, posLoc, resLoc, timeLoc, powerLoc, batteryLoc, backbufferLoc, frameLoc, world1Loc, world2Loc, rizziLoc;
+let program, posLoc, resLoc, timeLoc, powerLoc, batteryLoc, backbufferLoc, frameLoc, world1Loc, world2Loc, rizziLoc, treeLoc, fontLoc, touchLoc, dateLoc;
 let gl, canvas;
 let shaderSources = [];
 let frameCount = 0;
@@ -127,6 +133,10 @@ function startShader() {
         world1Loc = gl.getUniformLocation(program, 'world1');
         world2Loc = gl.getUniformLocation(program, 'world2');
         rizziLoc = gl.getUniformLocation(program, 'rizzi');
+        treeLoc = gl.getUniformLocation(program, 'tree');
+        fontLoc = gl.getUniformLocation(program, 'font');
+        touchLoc = gl.getUniformLocation(program, 'touch');
+        dateLoc = gl.getUniformLocation(program, 'date');
 
         for (let i = 0; i < 2; ++i) {
             gl.bindFramebuffer(gl.FRAMEBUFFER, fbos[i]);
@@ -175,6 +185,8 @@ async function main() {
     worldTextures[0] = loadTexture(gl, 'world1.jpg');
     worldTextures[1] = loadTexture(gl, 'world2.jpg');
     rizziTexture = loadTexture(gl, 'rizzi.png');
+    treeTexture = loadTexture(gl, 'tree.jpg');
+    fontTexture = loadTexture(gl, 'font.png');
     
 
     // Fullscreen quad
@@ -228,9 +240,27 @@ async function main() {
             gl.bindTexture(gl.TEXTURE_2D, rizziTexture);
             gl.uniform1i(rizziLoc, 3);
         }
-        let touchLoc = gl.getUniformLocation(program, 'touch');
+        if (treeTexture) {
+            gl.activeTexture(gl.TEXTURE4);
+            gl.bindTexture(gl.TEXTURE_2D, treeTexture);
+            gl.uniform1i(treeLoc, 4);
+        }
+        if (fontTexture) {
+            gl.activeTexture(gl.TEXTURE5);
+            gl.bindTexture(gl.TEXTURE_2D, fontTexture);
+            gl.uniform1i(fontLoc, 5);
+        }
         if (touchLoc) {
             gl.uniform2f(touchLoc, touch[0], touch[1]);
+        }
+        if (dateLoc) {
+            const d = new Date();
+            gl.uniform4f(dateLoc, 
+                d.getFullYear(), 
+                d.getMonth() + 1, 
+                d.getDate(), 
+                d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()
+            );
         }
 
         // If shader uses backbuffer, render to FBO and then blit to canvas
