@@ -1,4 +1,4 @@
-function startQwirkle() {
+function start4wins() {
 
 let scene, camera, renderer;
 let handGroup;
@@ -943,4 +943,4 @@ if(myRole == 'main') {initLogic();}
 
 }
 
-startQwirkle();
+start4wins();

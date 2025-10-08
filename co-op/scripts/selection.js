@@ -22,6 +22,11 @@
             title: 'Qwixx',
             image: 'qwixx.png',
             link: 'qwixx'
+        },
+        {
+            title: '4wins',
+            image: '4wins.png',
+            link: '4wins'
         }
     ];
 
