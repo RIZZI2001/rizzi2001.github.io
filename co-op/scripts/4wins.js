@@ -87,6 +87,30 @@ function initScene() {
     raycaster = new THREE.Raycaster();
     mouse = new THREE.Vector2();
 
+    // Add lighting for better shading
+    const ambientLight = new THREE.AmbientLight(0xffd4a3, 0.6); // Warm ambient light
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xfff2e6, 1.2); // Warm white light, brighter
+    directionalLight.position.set(5, 20, 5);
+    directionalLight.castShadow = true;
+    
+    // Fix shadow acne/self-shadowing
+    directionalLight.shadow.bias = -0.0005;
+    directionalLight.shadow.normalBias = 0.02;
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
+    
+    scene.add(directionalLight);
+
+    const fillLight = new THREE.DirectionalLight(0xffb366, 0.5); // Warm orange fill light
+    fillLight.position.set(-8, 12, -8);
+    scene.add(fillLight);
+
+    // Enable shadows
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
     boardGroup = new THREE.Group();
 
     // Create the game board with texture
@@ -99,13 +123,13 @@ function initScene() {
     const boardGeometry = new THREE.BoxGeometry(7, 6, 0.3);
     
     // Create materials array for different faces
-    const texturedMaterial = new THREE.MeshBasicMaterial({ 
+    const texturedMaterial = new THREE.MeshLambertMaterial({ 
         map: boardTexture,
         transparent: true,
         alphaTest: 0.5,
         side: THREE.DoubleSide
     });
-    const colorMaterial = new THREE.MeshBasicMaterial({ 
+    const colorMaterial = new THREE.MeshLambertMaterial({ 
         color: 0x363636,
         side: THREE.DoubleSide
     });
@@ -128,17 +152,32 @@ function initScene() {
     
     boardMesh = new THREE.Mesh(boardGeometry, boardMaterials);
     boardMesh.position.set(0, 2.5, 0);
+    boardMesh.castShadow = true;
+    boardMesh.receiveShadow = true;
     boardGroup.add(boardMesh);
 
     //Put stands on the left and right side of the board
     const standGeometry = new THREE.BoxGeometry(0.4, 0.5, 2);
     const leftStand = new THREE.Mesh(standGeometry, colorMaterial);
     leftStand.position.set(-3.7, -0.25, 0);
+    leftStand.castShadow = true;
+    leftStand.receiveShadow = true;
     boardGroup.add(leftStand);
 
     const rightStand = new THREE.Mesh(standGeometry, colorMaterial);
     rightStand.position.set(3.7, -0.25, 0);
+    rightStand.castShadow = true;
+    rightStand.receiveShadow = true;
     boardGroup.add(rightStand);
+
+    // Add floor under the board
+    const floorGeometry = new THREE.PlaneGeometry(50, 50);
+    const floorMaterial = new THREE.MeshLambertMaterial({ color: 0x1b2b3c });
+    const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.position.y = -0.5;
+    floorMesh.receiveShadow = true;
+    scene.add(floorMesh);
 
     chipGroup = new THREE.Group();
     boardGroup.add(chipGroup);
@@ -161,7 +200,7 @@ function placeChip(color, x, y, onComplete = null) {
     const chipGeometry = new THREE.CylinderGeometry(0.49, 0.49, 0.2, 32); // radius, radius, height, segments
     
     // Create materials for chip faces
-    const chipTextureMaterial = new THREE.MeshBasicMaterial({ 
+    const chipTextureMaterial = new THREE.MeshLambertMaterial({ 
         map: chipTexture,
         transparent: true,
         alphaTest: 0.1
@@ -170,7 +209,7 @@ function placeChip(color, x, y, onComplete = null) {
     let sideCol = 0x912c2c;
     if(color === 'Green') sideCol = 0x27803e;
 
-    const chipSideMaterial = new THREE.MeshBasicMaterial({ color: sideCol });
+    const chipSideMaterial = new THREE.MeshLambertMaterial({ color: sideCol });
     
     // Materials array for cylinder: [side, top, bottom]
     const chipMaterials = [
@@ -182,6 +221,8 @@ function placeChip(color, x, y, onComplete = null) {
     const chipMesh = new THREE.Mesh(chipGeometry, chipMaterials);
     chipMesh.position.set(x, y + 10, 0); // Start position (high above target)
     chipMesh.rotation.x = Math.PI / 2; // Rotate the chip to lie flat
+    chipMesh.castShadow = true;
+    chipMesh.receiveShadow = true;
     chipGroup.add(chipMesh);
     
     // Animate the chip falling and bouncing
