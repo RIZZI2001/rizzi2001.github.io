@@ -455,7 +455,7 @@ function render() {
 
 function showWinner(winnerName) {
     winnerIndicator.innerText = winnerName + ' wins!';
-    winnerIndicator.style.color = hexToCssColor(GAME_STATE.currentPlayer == myRole ? mainColor : secondColor);
+    winnerIndicator.style.color = hexToCssColor(winnerName == myName ? myColor() : otherColor());
     winnerIndicator.style.display = 'block';
 }
 
