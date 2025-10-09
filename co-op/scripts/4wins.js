@@ -25,7 +25,13 @@ window.communication = function(command, args) {
             initLogic(args.currentPlayer);
             break;
         case 'END_GAME':
-            showWinner(otherName);
+            if(args.winner == 'draw') {
+                winnerIndicator.innerText = "It's a draw!";
+                winnerIndicator.style.color = 'gray';
+                winnerIndicator.style.display = 'block';
+            } else {
+                showWinner(otherName);
+            }
             break;
         case 'BACK2SELECT':
             cleanupScene();
@@ -171,8 +177,8 @@ function initScene() {
     boardGroup.add(rightStand);
 
     // Add floor under the board
-    const floorGeometry = new THREE.PlaneGeometry(50, 50);
-    const floorMaterial = new THREE.MeshLambertMaterial({ color: 0x1b2b3c });
+    const floorGeometry = new THREE.PlaneGeometry(10, 5);
+    const floorMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
     const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
     floorMesh.rotation.x = -Math.PI / 2;
     floorMesh.position.y = -0.5;
@@ -269,9 +275,15 @@ function onMouseDown(event) {
             updateTurnIndicator();
 
             // Check for win condition
-            if (checkWinCondition(x + 3, y, chipColor)) {
+            const winCheck = checkWinCondition(x + 3, y, chipColor);
+            if (winCheck === 'true') {
                 showWinner(myName);
                 conn.send(packageData('END_GAME', { winner: myName }));
+            } else if (winCheck === 'draw') {
+                winnerIndicator.innerText = "It's a draw!";
+                winnerIndicator.style.color = 'gray';
+                winnerIndicator.style.display = 'block';
+                conn.send(packageData('END_GAME', { winner: 'draw' }));
             }
         });
 
@@ -286,7 +298,7 @@ function checkWinCondition(col, row, color) {
     for (let r = row - 1; r >= 0; r--) {
         if (GAME_STATE.columns[col][r] === color) {
             count++;
-            if (count === 4) return true;
+            if (count === 4) return 'true';
         } else {
             break;
         }
@@ -297,7 +309,7 @@ function checkWinCondition(col, row, color) {
     for (let c = col - 1; c >= 0; c--) {
         if (GAME_STATE.columns[c][row] === color) {
             count++;
-            if (count === 4) return true;
+            if (count === 4) return 'true';
         } else {
             break;
         }
@@ -305,7 +317,7 @@ function checkWinCondition(col, row, color) {
     for (let c = col + 1; c < 7; c++) {
         if (GAME_STATE.columns[c][row] === color) {
             count++;
-            if (count === 4) return true;
+            if (count === 4) return 'true';
         } else {
             break;
         }
@@ -318,7 +330,7 @@ function checkWinCondition(col, row, color) {
         const newRow = row + d;
         if (newCol >= 0 && newRow < 6 && GAME_STATE.columns[newCol][newRow] === color) {
             count++;
-            if (count === 4) return true;
+            if (count === 4) return 'true';
         } else {
             break;
         }
@@ -328,7 +340,7 @@ function checkWinCondition(col, row, color) {
         const newRow = row + d;
         if (newCol < 7 && newRow >= 0 && GAME_STATE.columns[newCol][newRow] === color) {
             count++;
-            if (count === 4) return true;
+            if (count === 4) return 'true';
         } else {
             break;
         }
@@ -341,7 +353,7 @@ function checkWinCondition(col, row, color) {
         const newRow = row + d;
         if (newCol < 7 && newRow < 6 && GAME_STATE.columns[newCol][newRow] === color) {
             count++;
-            if (count === 4) return true;
+            if (count === 4) return 'true';
         } else {
             break;
         }
@@ -351,13 +363,27 @@ function checkWinCondition(col, row, color) {
         const newRow = row + d;
         if (newCol >= 0 && newRow >= 0 && GAME_STATE.columns[newCol][newRow] === color) {
             count++;
-            if (count === 4) return true;
+            if (count === 4) return 'true';
         } else {
             break;
         }
     }
 
-    return false;
+    //Check if board is full
+    let isFull = true;
+    for (let c = 0; c < 7; c++) {
+        for (let r = 0; r < 6; r++) {
+            if (GAME_STATE.columns[c][r] === null) {
+                isFull = false;
+                break;
+            }
+        }
+    }
+    if(isFull) {
+        return 'draw';
+    }
+
+    return 'false';
 }
 
 function onMouseUp(event) {
