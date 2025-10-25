@@ -1,0 +1,195 @@
+#ui-container {
+    pointer-events: none;
+}
+
+#ui-container button {
+    pointer-events: auto;
+}
+
+#qwixx-container {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    background-color: #303030;
+    width: 100%;
+}
+
+.qwixx-dice-container {
+    margin-right: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: #494949;
+    border-radius: 20px;
+    border: #5a5a5a 2px solid;
+}
+
+.qwixx-inner-dice-container {
+    display: grid;
+    justify-items: center;
+    align-items: center;
+    grid-template-columns: repeat(2, auto);
+    grid-template-rows: repeat(3, auto);
+    gap: 5px; /* or 0 if you want them tight */
+    padding: 0;
+    width: fit-content;
+    height: fit-content;
+    border-radius: 18px;
+    border: #747474 2px solid;
+    background-color: #727272;
+}
+
+.qwixx-die {
+    border-radius: 10px;
+    border: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 34px;
+    color: black;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.qwixx-roll-button {
+    width: calc(100% - 10px);
+    margin-top: 5px;
+    height: 80px;
+    background-color: rgb(202, 202, 202);
+    border-radius: 18px;
+    border: none;
+    cursor: pointer;
+    font-size: 24px;
+}
+
+.qwixx-boards-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+}
+
+.qwixx-board-container {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    border-radius: 20px;
+    color: white;
+}
+
+.qwixx-board {
+    margin: 10px;
+    background-color: #e3e3e3;
+    border-radius: 20px;
+    font-size: 16px;
+    color: black;
+}
+
+.qwixx-row {
+    width: calc(100% - 40px);
+    margin-left: 20px;
+    margin-right: 20px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    /* box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); */
+    display: flex;
+    flex-direction: row;
+}
+
+.qwixx-number-div {
+    margin: 2px;
+    margin-right: 0;
+    border-radius: 8px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.qwixx-info-div {
+    margin: 2px;
+    margin-right: 0;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.qwixx-miss-div {
+    margin: 2px;
+    margin-right: 0;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.qwixx-miss-inner-div {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+}
+
+.qwixx-miss-box {
+    margin-left: 4px;
+    margin-bottom: 2px;
+    border-radius: 2px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.qwixx-miss-button {
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0);
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+}
+
+.qwixx-score-text-div {
+    margin: 5px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.qwixx-score-div {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    margin: 7px;
+    border-radius: 10px;
+    background-color: white;
+}
+
+.qwixx-number-button {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100%;
+    height: 100%;
+    background: none;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    z-index: 2;
+}

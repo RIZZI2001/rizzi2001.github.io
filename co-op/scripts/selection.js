@@ -24,9 +24,14 @@
             link: 'qwixx'
         },
         {
-            title: '4wins',
+            title: '4 wins',
             image: '4wins.png',
             link: '4wins'
+        },
+        {
+            title: 'One more time',
+            image: 'oneMoreTime.png',
+            link: 'oneMoreTime'
         }
     ];
 

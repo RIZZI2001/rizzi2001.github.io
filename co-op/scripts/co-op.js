@@ -153,7 +153,7 @@ function handleData(data) {
     }
 }
 
-setupPeerConnection();
+//setupPeerConnection();
 
 let baseUrl;
 if(window.location.href.includes('github')) {
@@ -161,8 +161,8 @@ if(window.location.href.includes('github')) {
     switch2('connection');
 } else {
     baseUrl = 'http://localhost:8000/co-op/';
-    switch2('connection');
-    //switch2('qwixx');
+    //switch2('connection');
+    switch2('oneMoreTime');
     myRole = 'main';
     myName = 'Player 1';
     otherRole = 'second';
