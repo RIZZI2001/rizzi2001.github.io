@@ -8,27 +8,35 @@ let scene = {};
 
 let GAME_STATE = {};
 
-    // Deterministic pseudo-random function that returns a value in [0,1).
-    // It accepts any numeric seed (will be coerced to a 32-bit unsigned int).
-    // Same seed -> same output. Lightweight, non-cryptographic.
-    function seededRandom(seed) {
-        // Coerce seed to 32-bit unsigned integer
-        let t = (Number(seed) >>> 0);
-        // Simple hash function to scramble the seed
-        t = ((t ^ (t >>> 16)) * 0x45d9f3b) >>> 0;
-        t = ((t ^ (t >>> 16)) * 0x45d9f3b) >>> 0;
-        t = ((t ^ (t >>> 16)) >>> 0);
-        // Ensure result is always positive and convert to [0,1)
-        return (t >>> 0) / 4294967296;
-    }
+function seededRandom(seed) {
+    let t = (Number(seed) >>> 0);
+    t = ((t ^ (t >>> 16)) * 0x45d9f3b) >>> 0;
+    t = ((t ^ (t >>> 16)) * 0x45d9f3b) >>> 0;
+    t = ((t ^ (t >>> 16)) >>> 0);
+    return (t >>> 0) / 4294967296;
+}
 
 document.addEventListener('keydown', (event) => {
     if (event.key === 't') {
-        generateBoard();
-    } else if (event.key === 'b') {
-        for (let i = 0; i < 10; i++) {
-            console.log(seededRandom(i));
+        /* const colors = {
+            0: '⬜',
+            1: '🟥',
+            2: '🟨',
+            3: '🟩',
+            4: '🟦',
+            5: '🟪'
+        } */
+        let b = generateBoard();
+        let visBoard = '';
+        for (let i = 0; i < b.length; i++) {
+            for (let j = 0; j < b[i].length; j++) {
+                let cell = b[i][j];
+                if(('' + cell).length == 1) cell = ' ' + cell;
+                visBoard += cell + ',';
+            }
+            visBoard += '\n';
         }
+        console.log(visBoard);
     }
 });
 
@@ -107,179 +115,112 @@ function generateUI() {
 }
 
 function generateBoard(baseSeed = 0) {
-    let directions = [
-        {x: 0, y: 1},   // Down
-        {x: 1, y: 0},   // Right
-        {x: 0, y: -1},  // Up
-        {x: -1, y: 0}   // Left
+    const directions = [
+        { x: 0, y: -1 }, // Up
+        { x: 1, y: 0 },  // Right
+        { x: 0, y: 1 },  // Down
+        { x: -1, y: 0 }  // Left
     ];
 
-    let boardLayout = [];
-    let history = [];
-    let attemptHistory = []; // Track which attempts we've tried for each block
+    let BOARD = [];
+    let PLACEDBLOCKS = [];
+    let PlacementOffsets = [];
 
-    // Initialize board
-    for (let x = 0; x < 7; x++) {
+    for (let i = 0; i < 7; i++) {
         let row = [];
-        for (let y = 0; y < 15; y++) {
+        for (let j = 0; j < 15; j++) {
             row.push(0);
         }
-        boardLayout.push(row);
+        BOARD.push(row);
     }
 
-    function bordersColor(newX, newY, color) {
-        let borders = false;
-        directions.forEach(dir => {
-            let borderX = newX + dir.x;
-            let borderY = newY + dir.y;
-            if (borderX >= 0 && borderX < 7 && borderY >= 0 && borderY < 15 && boardLayout[borderX][borderY] === color) {
-                borders = true;
+    PlacementOffsets = Array(30).fill(0);
+
+    let trys = 0;
+
+    while(PLACEDBLOCKS.length < 30 && trys < 1000) {
+        const BlockID = PLACEDBLOCKS.length;
+        const blockSize = 6 - Math.floor(BlockID / 5);
+
+        const emptyCells = [];
+        for (let i = 0; i < BOARD.length; i++) {
+            for (let j = 0; j < BOARD[i].length; j++) {
+                if (BOARD[i][j] === 0) {
+                    emptyCells.push({ x: j, y: i });
+                }
             }
-        });
-        return borders;
-    }
-
-    function shuffleArray(array, seed) {
-        // Create a copy to avoid modifying original
-        let shuffled = [...array];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(seededRandom(seed + i) * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
-        return shuffled;
-    }
+        const randIndex = Math.floor(seededRandom(baseSeed + PLACEDBLOCKS.length) * emptyCells.length + PlacementOffsets[BlockID]) % emptyCells.length;
+        const startCell = emptyCells[randIndex];
+        
+        // Try to place block
+        let newBlock = [];
+        newBlock.push( startCell );
 
-    function tryPlaceBlock(blockID) {
-        if (blockID >= 30) {
-            return true; // Successfully placed all blocks
-        }
-
-        // Calculate size: 5 blocks each of sizes 1,2,3,4,5,6 = 30 total blocks
-        // blockID 0-4: size 1, blockID 5-9: size 2, ..., blockID 25-29: size 6
-        const currentSize = 6 - Math.floor(blockID / 5);
-        const currentColor = (blockID % 5) + 1;
-
-        // Initialize attempt tracking for this block if needed
-        if (!attemptHistory[blockID]) {
-            attemptHistory[blockID] = { startPositionIndex: 0, placementAttempts: [] };
+        // Get empty neighbours
+        let emptyNeighbours = [];
+        for (let dir of directions) {
+            const nx = startCell.x + dir.x;
+            const ny = startCell.y + dir.y;
+            if (nx >= 0 && nx < 15 && ny >= 0 && ny < 7 && BOARD[ny][nx] === 0) {
+                emptyNeighbours.push({ x: nx, y: ny });
+            }
         }
 
-        // Find all valid starting positions
-        let emptyPositions = [];
-        for (let x = 0; x < 7; x++) {
-            for (let y = 0; y < 15; y++) {
-                if (boardLayout[x][y] === 0 && !bordersColor(x, y, currentColor)) {
-                    emptyPositions.push({x: x, y: y});
+        while (newBlock.length < blockSize && emptyNeighbours.length > 0) {
+            const randIndex = Math.floor(seededRandom(baseSeed + PLACEDBLOCKS.length + newBlock.length) * emptyNeighbours.length);
+            const nextCell = emptyNeighbours.splice(randIndex, 1)[0];
+            newBlock.push(nextCell);
+
+            // Update empty neighbours
+            for (let dir of directions) {
+                const nx = nextCell.x + dir.x;
+                const ny = nextCell.y + dir.y;
+                //Add to emptyNeighbours only if on board, empty and not already in newBlock or emptyNeighbours
+                if (nx >= 0 && nx < 15 && ny >= 0 && ny < 7 && BOARD[ny][nx] === 0 && !newBlock.some(cell => cell.x === nx && cell.y === ny) && !emptyNeighbours.some(cell => cell.x === nx && cell.y === ny)) {
+                    emptyNeighbours.push({ x: nx, y: ny });
                 }
             }
         }
 
-        if (emptyPositions.length === 0) {
-            return false; // No valid starting positions
-        }
-
-        // Shuffle starting positions deterministically
-        emptyPositions = shuffleArray(emptyPositions, baseSeed + blockID);
-
-        // Try each starting position from where we left off
-        for (let startIdx = attemptHistory[blockID].startPositionIndex; startIdx < emptyPositions.length; startIdx++) {
-            const startPos = emptyPositions[startIdx];
-            
-            // Try to grow block from this position
-            if (tryGrowBlock(startPos, currentSize, currentColor, blockID)) {
-                // Successfully placed this block, move to next
-                attemptHistory[blockID].startPositionIndex = startIdx;
-                if (tryPlaceBlock(blockID + 1)) {
-                    return true; // Solution found
-                }
-                // Backtrack: remove the block we just placed
-                const lastBlock = history.pop();
-                lastBlock.forEach(pos => {
-                    boardLayout[pos.x][pos.y] = 0;
-                });
+        if (newBlock.length === blockSize) {
+            // Place block
+            for (let cell of newBlock) {
+                BOARD[cell.y][cell.x] = BlockID + 1;
             }
+            PLACEDBLOCKS.push(newBlock);
+        } else {
+            // Failed to place block, increase offset and retry
+            PlacementOffsets[BlockID]++;
         }
-
-        // Exhausted all starting positions for this block
-        attemptHistory[blockID].startPositionIndex = 0;
-        return false;
+        trys++;
     }
+    console.log(`${trys} tries.`);
 
-    function tryGrowBlock(startPos, targetSize, color, blockID) {
-        let currentBlock = [{x: startPos.x, y: startPos.y}];
-        let growthAttempts = 0;
-        const maxGrowthAttempts = 100;
-
-        while (currentBlock.length < targetSize && growthAttempts < maxGrowthAttempts) {
-            let potentialPositions = [];
-            
-            // Find all potential expansion positions
-            currentBlock.forEach(pos => {
-                directions.forEach(dir => {
-                    let newX = pos.x + dir.x;
-                    let newY = pos.y + dir.y;
-
-                    if (newX >= 0 && newX < 7 && newY >= 0 && newY < 15 && 
-                        boardLayout[newX][newY] === 0 && 
-                        !currentBlock.some(p => p.x === newX && p.y === newY) && 
-                        !potentialPositions.some(p => p.x === newX && p.y === newY) &&
-                        !bordersColor(newX, newY, color)) {
-                        potentialPositions.push({x: newX, y: newY});
+    //Create adjacency list
+    let adjacencyDict = {};
+    for (let i = 1; i <= 30; i++) {
+        adjacencyDict[i] = [];
+    }
+    for (let i = 0; i < BOARD.length; i++) {
+        for (let j = 0; j < BOARD[i].length; j++) {
+            const cellValue = BOARD[i][j];
+            for (let dir of directions) {
+                const nx = j + dir.x;
+                const ny = i + dir.y;
+                if (nx >= 0 && nx < 15 && ny >= 0 && ny < 7) {
+                    const neighborValue = BOARD[ny][nx];
+                    if (neighborValue !== cellValue && !adjacencyDict[cellValue].includes(neighborValue)) {
+                        adjacencyDict[cellValue].push(neighborValue);
                     }
-                });
-            });
-
-            if (potentialPositions.length === 0) {
-                break; // Can't grow further
+                }
             }
-
-            // Choose next position deterministically
-            const nextIndex = Math.floor(seededRandom(baseSeed + blockID + currentBlock.length + growthAttempts) * potentialPositions.length);
-            currentBlock.push(potentialPositions[nextIndex]);
-            growthAttempts++;
         }
-
-        if (currentBlock.length === targetSize) {
-            // Successfully grown to target size, place on board
-            currentBlock.forEach(pos => {
-                boardLayout[pos.x][pos.y] = color;
-            });
-            history.push(currentBlock);
-            console.log('Placed block', blockID, 'of size', targetSize, 'color', color);
-            return true;
-        }
-
-        return false; // Failed to grow to target size
     }
-
-    // Start the recursive backtracking
-    console.log('Starting board generation with seed:', baseSeed);
-    const success = tryPlaceBlock(0);
     
-    if (!success) {
-        console.log('Failed to generate complete board');
-    } else {
-        console.log('Successfully generated board with', history.length, 'blocks');
-    }
+    console.log(adjacencyDict);
 
-    //VISUALIZE BOARD
-    let colorDict = {
-        0: '⬜️',
-        1: '🟥',
-        2: '🟨',
-        3: '🟩',
-        4: '🟦',
-        5: '🟪'
-    }
-    let rowStr = '';
-    for (let x = 0; x < 7; x++) {
-        for (let y = 0; y < 15; y++) {
-            rowStr += colorDict[boardLayout[x][y]];
-        }
-        rowStr += '\n';
-    }
-    console.log(rowStr);
-
+    return BOARD;
 }
 
 if(myRole === 'main') {
