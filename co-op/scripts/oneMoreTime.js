@@ -436,11 +436,10 @@ function generateBoard(baseSeed = 0) {
                 const color = colors[cellValue];
                 const column = Array.from(columnBlocks).find(c => c.x === x);
                 //Add block if not already present
-                let block;
                 if (!column.blocks.some(b => b.blockID === cellValue)) {
-                    block = column.blocks.push({ blockID: cellValue, color, y: [y] });
+                    column.blocks.push({ blockID: cellValue, color, y: [y] });
                 } else {
-                    block = column.blocks.find(b => b.blockID === cellValue);
+                    const block = column.blocks.find(b => b.blockID === cellValue);
                     block.y.push(y);
                 }
             }
@@ -460,28 +459,33 @@ function generateBoard(baseSeed = 0) {
                 //All blocks tried, remove last placed star and retry
                 const lastStar = starsPlaced.pop();
                 delete staredBlocks[lastStar.blockID];
+                starsByColor[colors[lastStar.blockID]]--;
                 const lastColumn = Array.from(columnBlocks).find(c => c.x === lastStar.x);
                 lastColumn.starPlaced = false;
                 blockOffsets[lastStar.x]++;
+                blockOffsets[targetColumn.x] = 0;
                 continue;
             }
 
             // nth block in this column
-            // const blockIDx = Math.floor(seededRandom(currentSeed + starsPlaced.length) * targetColumn.blocks.length + blockOffsets[targetColumn.x]) % targetColumn.blocks.length;
+            const blockIDx = Math.floor(seededRandom(currentSeed + starsPlaced.length) * targetColumn.blocks.length + blockOffsets[targetColumn.x]) % targetColumn.blocks.length;
             // Use block with most y cells
-            const blockIDx = targetColumn.blocks.reduce((maxIdx, block, idx, arr) => block.y.length > arr[maxIdx].y.length ? idx : maxIdx, 0);
-            const blockNr = targetColumn.blocks[blockIDx].blockID;
-            const blockColor = targetColumn.blocks[blockIDx].color;
+            //const blockIDx = targetColumn.blocks.reduce((maxIdx, block, idx, arr) => block.y.length > arr[maxIdx].y.length ? idx : maxIdx, 0);
+            const selectedBlock = targetColumn.blocks[blockIDx];
+            const blockNr = selectedBlock.blockID;
+            const blockColor = selectedBlock.color;
             if (staredBlocks[blockNr] === undefined && starsByColor[blockColor] < 3) {
                 //Place star on random cell of block in this column
-                const cellIDx = Math.floor(seededRandom(currentSeed + starsPlaced.length + 100) * targetColumn.blocks[blockIDx].y.length);
-                const starY = targetColumn.blocks[blockIDx].y[cellIDx];
+                const cellIDx = Math.floor(seededRandom(currentSeed + starsPlaced.length + 100) * selectedBlock.y.length);
+                const starY = selectedBlock.y[cellIDx];
                 starsByColor[blockColor]++;
                 staredBlocks[blockNr] = true;
                 targetColumn.starPlaced = true;
                 starsPlaced.push({ x: targetColumn.x, y: starY, blockID: blockNr });
+                console.log(`Placed star at (${targetColumn.x}, ${starY}) on block ${blockNr} of color ${blockColor}`);
             } else {
                 blockOffsets[targetColumn.x]++;
+                console.log(`Failed to place star at (${targetColumn.x}) on block ${blockNr} of color ${blockColor}`);
             }
         }
         return starsPlaced;
