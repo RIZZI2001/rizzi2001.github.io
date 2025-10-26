@@ -485,10 +485,8 @@ function generateBoard(baseSeed = 0) {
                 staredBlocks[blockNr] = true;
                 targetColumn.starPlaced = true;
                 starsPlaced.push({ x: targetColumn.x, y: starY, blockID: blockNr });
-                console.log(`Placed star at (${targetColumn.x}, ${starY}) on block ${blockNr} of color ${blockColor}`);
             } else {
                 blockOffsets[targetColumn.x]++;
-                console.log(`Failed to place star at (${targetColumn.x}) on block ${blockNr} of color ${blockColor}`);
             }
         }
         return starsPlaced;
