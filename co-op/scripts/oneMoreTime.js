@@ -8,6 +8,53 @@ let scene = {};
 
 let GAME_STATE = {};
 
+const colors = {
+    0: '⬜',
+    1: '🟥',
+    2: '🟨',
+    3: '🟩',
+    4: '🟦',
+    5: '🟪'
+}
+const starsColors = {
+    0: '⚪',
+    1: '🔴',
+    2: '🟡',
+    3: '🟢',
+    4: '🔵',
+    5: '🟣'
+}
+
+function visualizeBoard(b, stars=[]) {
+    let visBoard = '';
+    for (let i = 0; i < b.length; i++) {
+        for (let j = 0; j < b[i].length; j++) {
+            const starHere = stars.find(s => s.y === i && s.x === j);
+            if (starHere) {
+                visBoard += starsColors[b[i][j]];
+            } else {
+                visBoard += colors[b[i][j]];
+            }
+        }
+        visBoard += '\n';
+    }
+    console.log(visBoard);
+}
+
+async function getSeed(i) {
+    try {
+        const response = await fetch('oneMoreTimeSeeds.txt');
+        if (!response.ok) {
+            throw new Error('File not found');
+        }
+        const data = await response.text();
+        return data.split('\n')[i];
+    } catch (error) {
+        console.error('Error fetching the file:', error);
+        return null;
+    }
+}
+
 function seededRandom(seed) {
     let t = (Number(seed) >>> 0);
     t = ((t ^ (t >>> 16)) * 0x45d9f3b) >>> 0;
@@ -16,47 +63,26 @@ function seededRandom(seed) {
     return (t >>> 0) / 4294967296;
 }
 
-document.addEventListener('keydown', (event) => {
-    const colors = {
-        0: '⬜',
-        1: '🟥',
-        2: '🟨',
-        3: '🟩',
-        4: '🟦',
-        5: '🟪'
-    }
-
-    function visualizeBoard(b) {
-        let visBoard = '';
-        for (let i = 0; i < b.length; i++) {
-            for (let j = 0; j < b[i].length; j++) {
-                visBoard += colors[b[i][j] ];
-            }
-            visBoard += '\n';
-        }
-        console.log(visBoard);
-    }
-
+document.addEventListener('keydown', async (event) => {
     if (event.key === 't') {
-        let res = generateBoard(500);
-        let b = res.COLOREDBOARD;
-        visualizeBoard(b);
-    } else if (event.key === 'y') {
-        let sucessfulSeeds = [];
-        let SEED = 0;
-
-        while (sucessfulSeeds.length < 100) {
-            let res = generateBoard(SEED);
-            let sucseed = res.currentSeed;
-            let b = res.COLOREDBOARD;
-            visualizeBoard(b);
-            console.log(sucseed);
-
-            sucessfulSeeds.push(SEED);
-            SEED = sucseed + 10;
+        const i = Math.floor(Math.random() * 1000);
+        console.log('Selected seed index:', i);
+        
+        try {
+            const seed = await getSeed(i);
+            if (seed !== null) {
+                console.log('Using seed:', seed);
+                let res = generateBoard(parseInt(seed));
+                let stars = res.stars;
+                console.log('Star positions:', stars);
+                let b = res.COLOREDBOARD;
+                visualizeBoard(b, stars);
+            } else {
+                console.log('Failed to get seed, using default');
+            }
+        } catch (error) {
+            console.error('Error processing seed:', error);
         }
-
-        console.log(sucessfulSeeds);
     }
 });
 
@@ -371,7 +397,6 @@ function generateBoard(baseSeed = 0) {
     }
     
     // Verify no adjacent blocks have the same color
-    let adjacencyValid = true;
     for (let node in adjacencyDict) {
         const nodeNum = Number(node);
         if (nodeNum === 0) continue;
@@ -379,7 +404,6 @@ function generateBoard(baseSeed = 0) {
         for (let neighbor of adjacencyDict[node].neighbors) {
             if (neighbor !== 0 && coloringResult.colors[nodeNum] === coloringResult.colors[neighbor]) {
                 console.warn(`Invalid coloring: Block ${nodeNum} and ${neighbor} are adjacent but have the same color ${coloringResult.colors[nodeNum]}`);
-                adjacencyValid = false;
             }
         }
     }
@@ -395,7 +419,84 @@ function generateBoard(baseSeed = 0) {
         COLOREDBOARD.push(row);
     }
 
-    return { COLOREDBOARD, currentSeed };
+    //Place Stars
+    function generateStars(BOARD, colors) {
+        const starsByColor = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
+        const staredBlocks = {};
+
+        let columnBlocks = new Set();
+
+        for (let x = 0; x < 15; x++) {
+            columnBlocks.add( {x: x, starPlaced: false, blocks: [] } );
+        }
+
+        for (let y = 0; y < 7; y++) {
+            for (let x = 0; x < 15; x++) {
+                const cellValue = BOARD[y][x];
+                const color = colors[cellValue];
+                const column = Array.from(columnBlocks).find(c => c.x === x);
+                //Add block if not already present
+                let block;
+                if (!column.blocks.some(b => b.blockID === cellValue)) {
+                    block = column.blocks.push({ blockID: cellValue, color, y: [y] });
+                } else {
+                    block = column.blocks.find(b => b.blockID === cellValue);
+                    block.y.push(y);
+                }
+            }
+        }
+
+        console.log('Column blocks for star placement:', columnBlocks);
+
+        let starsPlaced = [];
+        let blockOffsets = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+        while (starsPlaced.length < 15) {
+            //get column with minimum amount of blocks that has no star yet
+            const availableColumns = Array.from(columnBlocks).filter(cb => !cb.starPlaced);
+            availableColumns.sort((a, b) => a.blocks.length - b.blocks.length);
+            const targetColumn = availableColumns[0];
+
+            if (blockOffsets[targetColumn.x] >= targetColumn.blocks.length) {
+                //All blocks tried, remove last placed star and retry
+                const lastStar = starsPlaced.pop();
+                delete staredBlocks[lastStar.blockID];
+                const lastColumn = Array.from(columnBlocks).find(c => c.x === lastStar.x);
+                lastColumn.starPlaced = false;
+                blockOffsets[lastStar.x]++;
+                continue;
+            }
+
+            // nth block in this column
+            // const blockIDx = Math.floor(seededRandom(currentSeed + starsPlaced.length) * targetColumn.blocks.length + blockOffsets[targetColumn.x]) % targetColumn.blocks.length;
+            // Use block with most y cells
+            const blockIDx = targetColumn.blocks.reduce((maxIdx, block, idx, arr) => block.y.length > arr[maxIdx].y.length ? idx : maxIdx, 0);
+            const blockNr = targetColumn.blocks[blockIDx].blockID;
+            const blockColor = targetColumn.blocks[blockIDx].color;
+            if (staredBlocks[blockNr] === undefined && starsByColor[blockColor] < 3) {
+                //Place star on random cell of block in this column
+                const cellIDx = Math.floor(seededRandom(currentSeed + starsPlaced.length + 100) * targetColumn.blocks[blockIDx].y.length);
+                const starY = targetColumn.blocks[blockIDx].y[cellIDx];
+                starsByColor[blockColor]++;
+                staredBlocks[blockNr] = true;
+                targetColumn.starPlaced = true;
+                starsPlaced.push({ x: targetColumn.x, y: starY, blockID: blockNr });
+            } else {
+                blockOffsets[targetColumn.x]++;
+            }
+        }
+        return starsPlaced;
+    }
+    
+    // Try to generate valid stars
+    let stars = generateStars(BOARD, coloringResult.colors);
+    
+    // If star generation fails, try a different approach or return failure
+    if (stars === null) {
+        console.warn('Failed to generate valid star placement for this board');
+        stars = []; // Return empty stars array as fallback
+    }
+
+    return { COLOREDBOARD, currentSeed, stars };
 }
 
 if(myRole === 'main') {
