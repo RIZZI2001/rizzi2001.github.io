@@ -469,9 +469,12 @@ function generateBoard(baseSeed = 0) {
 
             // nth block in this column
             const blockIDx = Math.floor(seededRandom(currentSeed + starsPlaced.length) * targetColumn.blocks.length + blockOffsets[targetColumn.x]) % targetColumn.blocks.length;
-            // Use block with most y cells
-            //const blockIDx = targetColumn.blocks.reduce((maxIdx, block, idx, arr) => block.y.length > arr[maxIdx].y.length ? idx : maxIdx, 0);
             const selectedBlock = targetColumn.blocks[blockIDx];
+            // Sort blocks by amount of y cells decreasing
+            /* const sortedBlocks = [...targetColumn.blocks].sort((a, b) => b.y.length - a.y.length);
+            const blockIDx = blockOffsets[targetColumn.x] % sortedBlocks.length;
+            const selectedBlock = sortedBlocks[blockIDx]; */
+
             const blockNr = selectedBlock.blockID;
             const blockColor = selectedBlock.color;
             if (staredBlocks[blockNr] === undefined && starsByColor[blockColor] < 3) {
