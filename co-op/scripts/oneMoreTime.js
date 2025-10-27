@@ -7,6 +7,10 @@ const omtContainer = document.getElementById('omt-container');
 let scene = {};
 
 let colors = ['#FFFFFF', '#cf1846ff', '#f77722ff', '#ecd713ff', '#20b327ff', '#69bbffff'];
+let columnValues = [
+    [5, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 3, 3, 3, 5], 
+    [3, 2, 2, 2, 1, 1, 1, 0, 1, 1, 1, 2, 2, 2, 3]
+];
 
 let GAME_STATE = {};
 
@@ -112,17 +116,36 @@ async function generateUI() {
         let sceneBoard = {};
 
         const board = document.createElement('div');
-        const boardHeight = maxHeight/2 - 20;
+        const boardHeight = maxHeight/2 - 40;
         const boardWidth = boardHeight * 1.72;
 
         board.style.height = `${boardHeight}px`;
+        console.log(boardHeight, boardWidth);
         board.style.width = `${boardWidth}px`;
 
         board.className = 'omt-board';
         board.innerHTML = '';
 
-        const boardGrid = document.createElement('div');
-        boardGrid.className = 'omt-board-grid';
+        const boardHead = document.createElement('div');
+        boardHead.className = 'omt-board-grid';
+        boardHead.id = 'omt-board-grid-head';
+
+        const boardBody = document.createElement('div');
+        boardBody.className = 'omt-board-grid';
+        boardBody.id = 'omt-board-grid-body';
+
+        const boardTail = document.createElement('div');
+        boardTail.className = 'omt-board-grid';
+        boardTail.id = 'omt-board-grid-tail';
+
+        for (let j = 0; j < 15; j++) {
+            const cell = document.createElement('button');
+            cell.className = 'omt-board-cell';
+            cell.style.backgroundColor = 'white';
+            //Letters A-O
+            cell.innerText = String.fromCharCode(65 + j);
+            boardHead.appendChild(cell);
+        }
 
         for (let i = 0; i < 7; i++) {
             for (let j = 0; j < 15; j++) {
@@ -141,11 +164,23 @@ async function generateUI() {
                 cell.style.backgroundSize = 'cover';
                 cell.style.backgroundRepeat = 'no-repeat';
                 cell.style.backgroundPosition = 'center';
-                boardGrid.appendChild(cell);
+                boardBody.appendChild(cell);
             }
         }
-        
-        board.appendChild(boardGrid);
+
+        for (let i = 0; i < 2; i++) {
+            for (let j = 0; j < 15; j++) {
+                const cell = document.createElement('button');
+                cell.className = 'omt-board-cell';
+                cell.style.backgroundColor = 'white';
+                cell.innerText = columnValues[i][j];
+                boardTail.appendChild(cell);
+            }
+        }
+
+        board.appendChild(boardHead);
+        board.appendChild(boardBody);
+        board.appendChild(boardTail);
 
         omtContainer.appendChild(board);
 
