@@ -2,88 +2,15 @@ function startOMT() {
 
 const currentPlayerIndicator = document.getElementById('current-player-indicator');
 const winnerIndicator = document.getElementById('winner-indicator');
-const gameContainer = document.getElementById('game-container');
+const omtContainer = document.getElementById('omt-container');
 
 let scene = {};
 
+let colors = ['#FFFFFF', '#cf1846ff', '#f77722ff', '#ecd713ff', '#20b327ff', '#69bbffff'];
+
 let GAME_STATE = {};
 
-const colors = {
-    0: '⬜',
-    1: '🟥',
-    2: '🟨',
-    3: '🟩',
-    4: '🟦',
-    5: '🟪'
-}
-const starsColors = {
-    0: '⚪',
-    1: '🔴',
-    2: '🟡',
-    3: '🟢',
-    4: '🔵',
-    5: '🟣'
-}
-
-function visualizeBoard(b, stars=[]) {
-    let visBoard = '';
-    for (let i = 0; i < b.length; i++) {
-        for (let j = 0; j < b[i].length; j++) {
-            const starHere = stars.find(s => s.y === i && s.x === j);
-            if (starHere) {
-                visBoard += starsColors[b[i][j]];
-            } else {
-                visBoard += colors[b[i][j]];
-            }
-        }
-        visBoard += '\n';
-    }
-    console.log(visBoard);
-}
-
-async function getSeed(i) {
-    try {
-        const response = await fetch('oneMoreTimeSeeds.txt');
-        if (!response.ok) {
-            throw new Error('File not found');
-        }
-        const data = await response.text();
-        return data.split('\n')[i];
-    } catch (error) {
-        console.error('Error fetching the file:', error);
-        return null;
-    }
-}
-
-function seededRandom(seed) {
-    let t = (Number(seed) >>> 0);
-    t = ((t ^ (t >>> 16)) * 0x45d9f3b) >>> 0;
-    t = ((t ^ (t >>> 16)) * 0x45d9f3b) >>> 0;
-    t = ((t ^ (t >>> 16)) >>> 0);
-    return (t >>> 0) / 4294967296;
-}
-
 document.addEventListener('keydown', async (event) => {
-    if (event.key === 't') {
-        const i = Math.floor(Math.random() * 1000);
-        console.log('Selected seed index:', i);
-        
-        try {
-            const seed = await getSeed(i);
-            if (seed !== null) {
-                console.log('Using seed:', seed);
-                let res = generateBoard(parseInt(seed));
-                let stars = res.stars;
-                console.log('Star positions:', stars);
-                let b = res.COLOREDBOARD;
-                visualizeBoard(b, stars);
-            } else {
-                console.log('Failed to get seed, using default');
-            }
-        } catch (error) {
-            console.error('Error processing seed:', error);
-        }
-    }
 });
 
 window.back2Selection = function() {
@@ -124,7 +51,7 @@ window.communication = function(command, args) {
 
 function cleanupScene() {
     console.log('Cleaning up scene...');
-    gameContainer.innerHTML = '';
+    omtContainer.innerHTML = '';
     scene = {};
     GAME_STATE = {};
 }
@@ -133,10 +60,10 @@ function updateTurnIndicator() {
     currentPlayerIndicator.innerText = GAME_STATE.currentPlayer == myRole ? 'Your Turn' : otherName + "'s Turn";
 
     if (GAME_STATE.currentPlayer === 'main') {
-        gameContainer.style.background = hexToCssColor(mainColorDark);
+        omtContainer.style.background = hexToCssColor(mainColorDark);
         currentPlayerIndicator.style.color = hexToCssColor(mainColor);
     } else {
-        gameContainer.style.background = hexToCssColor(secondColorDark);
+        omtContainer.style.background = hexToCssColor(secondColorDark);
         currentPlayerIndicator.style.color = hexToCssColor(secondColor);
     }
 }
@@ -148,7 +75,29 @@ function initLogic(turn = null) {
     generateUI();
 }
 
-function generateUI() {
+async function generateUI() {
+    async function getSeed(i) {
+        try {
+            const response = await fetch('oneMoreTimeSeeds.txt');
+            if (!response.ok) {
+                throw new Error('File not found');
+            }
+            const data = await response.text();
+            return data.split('\n')[i];
+        } catch (error) {
+            console.error('Error fetching the file:', error);
+            return null;
+        }
+    }
+
+    const i = Math.floor(Math.random() * 1000);
+    let generatedBoard;
+
+    const seed = await getSeed(i);
+    console.log('Using seed:', seed);
+    generatedBoard = generateBoard(parseInt(seed));
+
+    //Generate UI
     scene = {
         dice: [],
         boards: {
@@ -157,7 +106,124 @@ function generateUI() {
         },
     };
 
+    const maxHeight = Math.min(window.innerHeight, window.innerWidth / 1.4);
+
+    function newBoard(buttons = true, generatedBoard) {
+        let sceneBoard = {};
+
+        const board = document.createElement('div');
+        const boardHeight = maxHeight/2 - 20;
+        const boardWidth = boardHeight * 1.72;
+
+        board.style.height = `${boardHeight}px`;
+        board.style.width = `${boardWidth}px`;
+
+        board.className = 'omt-board';
+        board.innerHTML = '';
+
+        const boardGrid = document.createElement('div');
+        boardGrid.className = 'omt-board-grid';
+
+        for (let i = 0; i < 7; i++) {
+            for (let j = 0; j < 15; j++) {
+                const cell = document.createElement('button');
+                if(j === 7) {
+                    cell.className = 'omt-board-cell-middle';
+                } else {
+                    cell.className = 'omt-board-cell';
+                }
+                cell.style.backgroundColor = colors[generatedBoard[i][j].color];
+                if(generatedBoard[i][j].star) {
+                    cell.style.backgroundImage = 'url("img/star.png")';
+                } else {
+                    cell.style.backgroundImage = 'url("img/field.png")';
+                }
+                cell.style.backgroundSize = 'cover';
+                cell.style.backgroundRepeat = 'no-repeat';
+                cell.style.backgroundPosition = 'center';
+                boardGrid.appendChild(cell);
+            }
+        }
+        
+        board.appendChild(boardGrid);
+
+        omtContainer.appendChild(board);
+
+        return {board, sceneBoard};
+    }
+
+    //dice
+    const diceContainer = document.createElement('div');
+    diceContainer.className = 'omt-dice-container';
+    const diceContainerHeight = maxHeight / 2 - 20;
+    const diceContainerWidth = diceContainerHeight / 2;
+    diceContainer.style.height = `${diceContainerHeight}px`;
+    diceContainer.style.width = `${diceContainerWidth}px`;
+
+    const innerDiceContainer = document.createElement('div');
+    innerDiceContainer.className = 'omt-inner-dice-container';
+    innerDiceContainer.style.height = `${diceContainerHeight - 95}px`;
+    innerDiceContainer.style.width = `${diceContainerWidth - 10}px`;
+
+    for(let i = 0; i < 6; i++) {
+        const die = document.createElement('div');
+        die.className = 'omt-die';
+        const size = (diceContainerWidth / 2) - 15;
+        die.style.width = `${size}px`;
+        die.style.height = `${size}px`;
+        die.style.backgroundColor = '#ffffff';
+        die.style.backgroundImage = `url('img/dice_${i + 1}.png')`;
+        innerDiceContainer.appendChild(die);
+        scene.dice.push(die);
+    }
+
+    diceContainer.appendChild(innerDiceContainer);
+
+    const rollButton = document.createElement('button');
+    rollButton.className = 'omt-roll-button';
+    rollButton.innerText = 'Roll Dice';
+    rollButton.addEventListener('click', function() {
+        rollDice();
+    });
+    diceContainer.appendChild(rollButton);
+
+    omtContainer.appendChild(diceContainer);
+
+    const boardsContainer = document.createElement('div');
+    boardsContainer.className = 'omt-boards-container';
+    omtContainer.appendChild(boardsContainer);
+
+    const otherboardContainer = document.createElement('div');
+    otherboardContainer.className = 'omt-board-container';
+    otherboardContainer.innerText = otherName;
+    otherboardContainer.style.backgroundColor = hexToCssColor(otherColor('semi-dark'));
+    otherboardContainer.style.width = `${(maxHeight / 2) * 1.72 + 100}px`;
+    const {board: otherBoard, sceneBoard: otherBoardScene} = newBoard(false, generatedBoard);
+    scene.boards.otherBoard = otherBoardScene;
+    otherBoard.id = 'other-board';
+    otherboardContainer.appendChild(otherBoard);
+    boardsContainer.appendChild(otherboardContainer);
+
+    const myboardContainer = document.createElement('div');
+    myboardContainer.className = 'omt-board-container';
+    myboardContainer.innerText = myName;
+    myboardContainer.style.backgroundColor = hexToCssColor(myColor('semi-dark'));
+    myboardContainer.style.width = `${otherboardContainer.offsetWidth}px`;
+    const {board: myBoard, sceneBoard: myBoardScene} = newBoard(true, generatedBoard);
+    scene.boards.myBoard = myBoardScene;
+    myBoard.id = 'my-board';
+    myboardContainer.appendChild(myBoard);
+    boardsContainer.appendChild(myboardContainer);
+
     console.log(scene);
+}
+
+function seededRandom(seed) {
+    let t = (Number(seed) >>> 0);
+    t = ((t ^ (t >>> 16)) * 0x45d9f3b) >>> 0;
+    t = ((t ^ (t >>> 16)) * 0x45d9f3b) >>> 0;
+    t = ((t ^ (t >>> 16)) >>> 0);
+    return (t >>> 0) / 4294967296;
 }
 
 function generateBoard(baseSeed = 0) {
@@ -414,7 +480,7 @@ function generateBoard(baseSeed = 0) {
         let row = [];
         for (let j = 0; j < BOARD[i].length; j++) {
             const cellValue = BOARD[i][j];
-            row.push(cellValue !== 0 ? coloringResult.colors[cellValue] + 1 : 0);
+            row.push( { color: cellValue !== 0 ? coloringResult.colors[cellValue] + 1 : 0, star: false });
         }
         COLOREDBOARD.push(row);
     }
@@ -444,8 +510,6 @@ function generateBoard(baseSeed = 0) {
                 }
             }
         }
-
-        console.log('Column blocks for star placement:', columnBlocks);
 
         let starsPlaced = [];
         let blockOffsets = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
@@ -489,19 +553,17 @@ function generateBoard(baseSeed = 0) {
                 blockOffsets[targetColumn.x]++;
             }
         }
-        return starsPlaced;
+        return starsPlaced; 
     }
     
     // Try to generate valid stars
     let stars = generateStars(BOARD, coloringResult.colors);
     
-    // If star generation fails, try a different approach or return failure
-    if (stars === null) {
-        console.warn('Failed to generate valid star placement for this board');
-        stars = []; // Return empty stars array as fallback
+    for (let star of stars) {
+        COLOREDBOARD[star.y][star.x].star = true;
     }
 
-    return { COLOREDBOARD, currentSeed, stars };
+    return COLOREDBOARD;
 }
 
 if(myRole === 'main') {
