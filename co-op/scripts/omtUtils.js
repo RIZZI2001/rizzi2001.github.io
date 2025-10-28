@@ -611,9 +611,12 @@ async function generateUI(gameData) {
             die.style.backgroundColor = '#d8d8d8ff';
             die.style.backgroundImage = `url('img/${numberDiceImgs[i]}')`;
             die.style.filter = 'invert(1)';
+
+            innerDiceContainer.appendChild(die);
+            gameData.scene.dice.push(die);
         } else {
             // Color the cross using the colors array (cycling through colors 1-5)
-            const color = colors[Math.floor(i / 2) + 1];
+            const color = colors[i];
             
             // Keep white background and create colored cross overlay
             die.style.backgroundColor = '#ffffff';
@@ -634,9 +637,10 @@ async function generateUI(gameData) {
             crossOverlay.style.pointerEvents = 'none';
             
             die.appendChild(crossOverlay);
+
+            innerDiceContainer.appendChild(die);
+            gameData.scene.dice.push(crossOverlay);
         }
-        innerDiceContainer.appendChild(die);
-        gameData.scene.dice.push(die);
     }
 
     diceContainer.appendChild(innerDiceContainer);

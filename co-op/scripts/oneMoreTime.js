@@ -35,9 +35,41 @@ window.undo = function() {
     conn.send(packageData('UNDO_ACTION', { action: lastAction }));
 }
 
+function setDie(dieIndex, value) {
+    if(dieIndex % 2 === 0) {
+        scene.dice[dieIndex].style.backgroundImage = `url('img/dice_${value}.png')`;
+    } else {
+        scene.dice[dieIndex].style.backgroundColor = colors[value - 1];
+    }
+}
+
+function animateDice() {
+    let count = 0;
+    const interval = setInterval(() => {
+        for(let i = 0; i < 6; i++) {
+            const randomValue = Math.floor(Math.random() * 6) + 1;
+            setDie(i, randomValue);
+        }
+        count++;
+        if(count === 6) {
+            clearInterval(interval);
+            for(let i = 0; i < 6; i++) {
+                setDie(i, GAME_STATE.diceValues[i]);
+            }
+        }
+    }, 100);
+}
+
 window.rollDice = function() {
-    // TODO: Implement dice rolling functionality
-    console.log('Rolling dice...');
+    for(let i = 0; i < 6; i++) {
+        GAME_STATE.diceValues[i] = Math.floor(Math.random() * 6) + 1;
+    }
+    console.log('Rolled dice values:', GAME_STATE.diceValues);
+    //conn.send(packageData('ROLL_DICE', { diceValues: GAME_STATE.diceValues }));
+    animateDice();
+    GAME_STATE.diceRolls++;
+    GAME_STATE.myState = 'myDiceRolled';
+    GAME_STATE.actionsStack = [];
 }
 
 window.communication = function(command, args) {
@@ -104,6 +136,11 @@ async function loadUtilsAndGenerateUI() {
 
 function initLogic(turn = null) {
     GAME_STATE = {
+        diceValues: [0, 1, 2, 3, 4, 5],
+        diceRolls: 0,
+        myState: 'default',
+        currentPlayer: Math.random() < 0.5 ? 'main' : 'second',
+        actionsStack: [],
     };
     updateTurnIndicator();
     loadUtilsAndGenerateUI();
