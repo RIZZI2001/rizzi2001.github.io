@@ -6,7 +6,7 @@ const omtContainer = document.getElementById('omt-container');
 
 let scene = {};
 
-let colors = ['#FFFFFF', '#cf1846ff', '#f77722ff', '#ecd713ff', '#20b327ff', '#69bbffff'];
+let colors = ['#FFFFFF', '#20b327ff', '#ffc919ff', '#69bbffff', '#ec305fff', '#f0721eff'];
 let columnValues = [
     [5, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 3, 3, 3, 5], 
     [3, 2, 2, 2, 1, 1, 1, 0, 1, 1, 1, 2, 2, 2, 3]
@@ -126,6 +126,11 @@ async function generateUI() {
         board.className = 'omt-board';
         board.innerHTML = '';
 
+        //grid container
+        const gridContainer = document.createElement('div');
+        gridContainer.className = 'omt-board-grid-container';
+        board.appendChild(gridContainer);
+
         const boardHead = document.createElement('div');
         boardHead.className = 'omt-board-grid';
         boardHead.id = 'omt-board-grid-head';
@@ -178,9 +183,51 @@ async function generateUI() {
             }
         }
 
-        board.appendChild(boardHead);
-        board.appendChild(boardBody);
-        board.appendChild(boardTail);
+        gridContainer.appendChild(boardHead);
+        gridContainer.appendChild(boardBody);
+        gridContainer.appendChild(boardTail);
+
+        const jokerContainer = document.createElement('div');
+        jokerContainer.className = 'omt-joker-container';
+
+        const jokerTitle = document.createElement('img');
+        jokerTitle.src = 'img/omt-joker-row.png';
+        jokerTitle.height = 32;
+        //keep aspect ratio
+        jokerTitle.width = jokerTitle.height * 3;
+        jokerTitle.alt = 'Joker';
+        jokerContainer.appendChild(jokerTitle);
+
+        for (let j = 0; j < 8; j++) {
+            const cell = document.createElement('button');
+            cell.className = 'omt-joker-cell';
+            cell.style.backgroundImage = 'url("img/omt-joker.png")';
+            cell.style.backgroundSize = 'cover';
+            cell.style.backgroundRepeat = 'no-repeat';
+            cell.style.backgroundPosition = 'center';
+            jokerContainer.appendChild(cell);
+        }
+
+        gridContainer.appendChild(jokerContainer);
+
+        //color and points container
+        const color_and_points_container = document.createElement('div');
+        color_and_points_container.className = 'omt-color-and-points-container';
+        board.appendChild(color_and_points_container);
+
+        const colorContainer = document.createElement('div');
+        colorContainer.className = 'omt-color-container';
+        color_and_points_container.appendChild(colorContainer);
+
+        for (let i = 0; i < 5; i++) {
+            for (let j = 0; j < 2; j++) {
+                const cell = document.createElement('button');
+                cell.className = 'omt-board-cell';
+                cell.style.backgroundColor = colors[i + 1];
+                cell.innerText = 5 - j * 2;
+                colorContainer.appendChild(cell);
+            }
+        }
 
         omtContainer.appendChild(board);
 

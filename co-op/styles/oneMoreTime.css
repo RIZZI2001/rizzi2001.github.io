@@ -90,11 +90,23 @@
     font-size: 16px;
     color: black;
     padding: 10px;
+    display: flex;
+    flex-direction: row;
 }
 
 .omt-board-grid {
     display: grid;
     grid-template-columns: repeat(15, 34px);
+    gap: 0px;
+    justify-content: center;
+    align-content: center;
+    margin-bottom: 10px;
+}
+
+.omt-color-container {
+    display: grid;
+    grid-template-columns: repeat(2, 34px);
+    grid-template-rows: repeat(5, 34px);
     gap: 0px;
     justify-content: center;
     align-content: center;
@@ -131,6 +143,8 @@
     border-radius: 8px;
     cursor: pointer;
     transition: opacity 0.2s ease;
+    font-size: large;
+    font-style: bold;
 }
 
 .omt-board-cell:hover {
@@ -141,3 +155,35 @@
     opacity: 0.6;
 }
 
+.omt-board-cell-middle:hover {
+    opacity: 0.8;
+}
+
+.omt-board-cell-middle:active {
+    opacity: 0.6;
+}
+
+.omt-joker-container {
+    display: flex;
+    flex-direction: row;
+    background-color: white;
+    border-radius: 10px;
+    padding: 5px;
+}
+
+.omt-joker-cell {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 16px;
+    margin-left: 10px;
+    cursor: pointer;
+}
+
+.omt-joker-cell:hover {
+    filter: brightness(0.85);
+}
+
+.omt-joker-cell:active {
+    filter: brightness(0.7);
+}
