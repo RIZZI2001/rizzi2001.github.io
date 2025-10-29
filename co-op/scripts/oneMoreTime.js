@@ -4,6 +4,8 @@ const currentPlayerIndicator = document.getElementById('current-player-indicator
 const winnerIndicator = document.getElementById('winner-indicator');
 const omtContainer = document.getElementById('omt-container');
 
+let utilsScript = null;
+
 let scene = {};
 
 let colors = ['#000000', '#20b327ff', '#ffc919ff', '#69bbffff', '#ec305fff', '#f0721eff'];
@@ -24,6 +26,10 @@ document.addEventListener('keydown', async (event) => {
 });
 
 window.back2Selection = function() {
+    if (utilsScript) {
+        document.body.removeChild(utilsScript);
+        utilsScript = null;
+    }
     conn.send(packageData('BACK2SELECT', {}));
     cleanupScene();
     switch2('selection');
@@ -117,9 +123,9 @@ function updateTurnIndicator() {
 
 async function loadUtilsAndGenerateUI() {
     return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'scripts/omtUtils.js';
-        script.onload = () => {
+        utilsScript = document.createElement('script');
+        utilsScript.src = 'scripts/omtUtils.js';
+        utilsScript.onload = () => {
             // Once omtUtils.js is loaded, call generateUI with all necessary parameters
             const gameData = {
                 scene: scene,
@@ -136,8 +142,8 @@ async function loadUtilsAndGenerateUI() {
                 resolve(result);
             }).catch(reject);
         };
-        script.onerror = reject;
-        document.body.appendChild(script);
+        utilsScript.onerror = reject;
+        document.body.appendChild(utilsScript);
     });
 }
 
