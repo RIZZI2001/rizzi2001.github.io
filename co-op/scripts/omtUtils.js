@@ -349,10 +349,28 @@ function generateBoard(baseSeed = 0) {
 async function generateUI(gameData) {
     // Extract all necessary data from gameData parameter
     const { 
-        scene, colors, columnValues, numberDiceImgs
+        scene, colors, columnValues, numberDiceImgs, boardClickHandler
     } = gameData;
 
     const omtContainer = document.getElementById('omt-container');
+
+    // Utility function to create overlay divs for crossing out
+    function createOverlayDiv() {
+        const overlay = document.createElement('div');
+        overlay.style.position = 'absolute';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.backgroundImage = 'url("img/crossed.png")';
+        overlay.style.backgroundSize = 'cover';
+        overlay.style.backgroundRepeat = 'no-repeat';
+        overlay.style.backgroundPosition = 'center';
+        overlay.style.display = 'none';
+        overlay.style.pointerEvents = 'none';
+        overlay.style.zIndex = '10';
+        return overlay;
+    }
 
     async function getSeed(i) {
         try {
@@ -376,23 +394,79 @@ async function generateUI(gameData) {
     generatedBoard = generateBoard(parseInt(seed));
 
     //Generate UI
-    gameData.scene.dice = [];
-    gameData.scene.boards = {
+    gameData.scene = {
+        dice: [],
         myBoard: null,
-        otherBoard: null
+        otherBoard: null,
+        // Utility functions for crossing out elements
+        crossOut: {
+            grid: function(board, row, col) {
+                if (gameData.scene[board] && gameData.scene[board].grid[row] && gameData.scene[board].grid[row][col]) {
+                    gameData.scene[board].grid[row][col].style.display = 'block';
+                }
+            },
+            column: function(board, row, col) {
+                if (gameData.scene[board] && gameData.scene[board].column[row] && gameData.scene[board].column[row][col]) {
+                    gameData.scene[board].column[row][col].style.display = 'block';
+                }
+            },
+            joker: function(board, index) {
+                if (gameData.scene[board] && gameData.scene[board].joker[index]) {
+                    gameData.scene[board].joker[index].style.display = 'block';
+                }
+            },
+            color: function(board, row, col) {
+                if (gameData.scene[board] && gameData.scene[board].color[row] && gameData.scene[board].color[row][col]) {
+                    gameData.scene[board].color[row][col].style.display = 'block';
+                }
+            }
+        },
+        unCross: {
+            grid: function(board, row, col) {
+                if (gameData.scene[board] && gameData.scene[board].grid[row] && gameData.scene[board].grid[row][col]) {
+                    gameData.scene[board].grid[row][col].style.display = 'none';
+                }
+            },
+            column: function(board, row, col) {
+                if (gameData.scene[board] && gameData.scene[board].column[row] && gameData.scene[board].column[row][col]) {
+                    gameData.scene[board].column[row][col].style.display = 'none';
+                }
+            },
+            joker: function(board, index) {
+                if (gameData.scene[board] && gameData.scene[board].joker[index]) {
+                    gameData.scene[board].joker[index].style.display = 'none';
+                }
+            },
+            color: function(board, colorIndex, value) {
+                if (gameData.scene[board] && gameData.scene[board].color[colorIndex] && gameData.scene[board].color[colorIndex][value]) {
+                    gameData.scene[board].color[colorIndex][value].style.display = 'none';
+                }
+            }
+        },
+        setScore: function(board, fieldId, score) {
+            if (gameData.scene[board] && gameData.scene[board].points[fieldId]) {
+                gameData.scene[board].points[fieldId].innerText = score;
+            }
+        }
     };
 
     const maxHeight = Math.min(window.innerHeight, window.innerWidth / 1.4);
 
     function newBoard(buttons = true, generatedBoard) {
-        let sceneBoard = {};
+        // Initialize scene board structure
+        let sceneBoard = {
+            grid: Array(7).fill().map(() => Array(15).fill(null)),
+            column: Array(2).fill().map(() => Array(15).fill(null)),
+            joker: [],
+            color: {},
+            points: []
+        };
 
         const board = document.createElement('div');
         const boardHeight = maxHeight/2 - 40;
         const boardWidth = boardHeight * 1.65;
 
         board.style.height = `${boardHeight}px`;
-        console.log(boardHeight, boardWidth);
         board.style.width = `${boardWidth}px`;
 
         board.className = 'omt-board';
@@ -426,6 +500,10 @@ async function generateUI(gameData) {
 
         for (let i = 0; i < 7; i++) {
             for (let j = 0; j < 15; j++) {
+                const cellContainer = document.createElement('div');
+                cellContainer.style.position = 'relative';
+                cellContainer.style.display = 'inline-block';
+
                 const cell = document.createElement('button');
                 if(j === 7) {
                     cell.className = 'omt-board-cell-middle';
@@ -441,17 +519,51 @@ async function generateUI(gameData) {
                 cell.style.backgroundSize = 'cover';
                 cell.style.backgroundRepeat = 'no-repeat';
                 cell.style.backgroundPosition = 'center';
-                boardBody.appendChild(cell);
+                
+                // Create overlay div for crossing out
+                const overlay = createOverlayDiv();
+
+                if(buttons) {
+                    cell.addEventListener('click', function() {
+                        boardClickHandler('grid', j, i);
+                    });
+                }
+
+                cellContainer.appendChild(cell);
+                cellContainer.appendChild(overlay);
+                boardBody.appendChild(cellContainer);
+
+                // Store overlay reference in scene
+                sceneBoard.grid[i][j] = overlay;
             }
         }
 
         for (let i = 0; i < 2; i++) {
             for (let j = 0; j < 15; j++) {
+                const cellContainer = document.createElement('div');
+                cellContainer.style.position = 'relative';
+                cellContainer.style.display = 'inline-block';
+
                 const cell = document.createElement('button');
                 cell.className = 'omt-board-cell';
                 cell.style.backgroundColor = 'white';
                 cell.innerText = columnValues[i][j];
-                boardTail.appendChild(cell);
+                
+                // Create overlay div for crossing out
+                const overlay = createOverlayDiv();
+
+                if(buttons) {
+                    cell.addEventListener('click', function() {
+                        boardClickHandler('column', j, i);
+                    });
+                }
+
+                cellContainer.appendChild(cell);
+                cellContainer.appendChild(overlay);
+                boardTail.appendChild(cellContainer);
+
+                // Store overlay reference in scene
+                sceneBoard.column[i][j] = overlay;
             }
         }
 
@@ -471,13 +583,37 @@ async function generateUI(gameData) {
         jokerContainer.appendChild(jokerTitle);
 
         for (let j = 0; j < 8; j++) {
+            const cellContainer = document.createElement('div');
+            cellContainer.style.position = 'relative';
+            cellContainer.style.display = 'inline-block';
+
             const cell = document.createElement('button');
             cell.className = 'omt-joker-cell';
             cell.style.backgroundImage = 'url("img/omt-joker.png")';
             cell.style.backgroundSize = 'cover';
             cell.style.backgroundRepeat = 'no-repeat';
             cell.style.backgroundPosition = 'center';
-            jokerContainer.appendChild(cell);
+            
+            // Create overlay div for crossing out - size it to match the button, not the container
+            const overlay = createOverlayDiv();
+            // Override positioning for joker buttons to match button size exactly
+            overlay.style.width = '36px';
+            overlay.style.height = '36px';
+            overlay.style.top = '0';
+            overlay.style.left = '10px';
+
+            if(buttons) {
+                cell.addEventListener('click', function() {
+                    boardClickHandler('joker', j, 0);
+                });
+            }
+
+            cellContainer.appendChild(cell);
+            cellContainer.appendChild(overlay);
+            jokerContainer.appendChild(cellContainer);
+
+            // Store overlay reference in scene
+            sceneBoard.joker.push(overlay);
         }
 
         gridContainer.appendChild(jokerContainer);
@@ -491,13 +627,34 @@ async function generateUI(gameData) {
         colorContainer.className = 'omt-color-container';
         color_and_points_container.appendChild(colorContainer);
 
+        sceneBoard.color = Array(5).fill().map(() => Array(2).fill(null));
+
         for (let i = 0; i < 5; i++) {
             for (let j = 0; j < 2; j++) {
+                const cellContainer = document.createElement('div');
+                cellContainer.style.position = 'relative';
+                cellContainer.style.display = 'inline-block';
+
                 const cell = document.createElement('button');
                 cell.className = 'omt-board-cell';
                 cell.style.backgroundColor = colors[i + 1];
                 cell.innerText = 5 - j * 2;
-                colorContainer.appendChild(cell);
+                
+                // Create overlay div for crossing out
+                const overlay = createOverlayDiv();
+
+                if(buttons) {
+                    cell.addEventListener('click', function() {
+                        boardClickHandler('color', j, i);
+                    });
+                }
+
+                cellContainer.appendChild(cell);
+                cellContainer.appendChild(overlay);
+                colorContainer.appendChild(cellContainer);
+
+                // Store overlay reference in scene
+                sceneBoard.color[i][j] = overlay;
             }
         }
 
@@ -515,7 +672,7 @@ async function generateUI(gameData) {
             { label: 'TOTAL', textContent: '='}
         ];
 
-        pointsRows.forEach(rowData => {
+        pointsRows.forEach((rowData, index) => {
             const row = document.createElement('div');
             row.className = 'omt-points-row';
 
@@ -576,6 +733,9 @@ async function generateUI(gameData) {
                     textField.style.color = 'red';
                 }
 
+                // Add text field reference to points array
+                sceneBoard.points.push(textField);
+
                 row.appendChild(labelContainer);
                 row.appendChild(textField);
             }
@@ -609,7 +769,7 @@ async function generateUI(gameData) {
         die.style.height = `${size}px`;
         if( i % 2 === 0 ) {
             die.style.backgroundColor = '#d8d8d8ff';
-            die.style.backgroundImage = `url('img/${numberDiceImgs[i]}')`;
+            die.style.backgroundImage = `url('img/${numberDiceImgs[i]}.png')`;
             die.style.filter = 'invert(1)';
 
             innerDiceContainer.appendChild(die);
@@ -665,7 +825,7 @@ async function generateUI(gameData) {
     otherboardContainer.style.backgroundColor = hexToCssColor(otherColor('semi-dark'));
     otherboardContainer.style.width = `${(maxHeight / 2) * 1.72 + 100}px`;
     const {board: otherBoard, sceneBoard: otherBoardScene} = newBoard(false, generatedBoard);
-    gameData.scene.boards.otherBoard = otherBoardScene;
+    gameData.scene.otherBoard = otherBoardScene;
     otherBoard.id = 'other-board';
     otherboardContainer.appendChild(otherBoard);
     boardsContainer.appendChild(otherboardContainer);
@@ -676,10 +836,14 @@ async function generateUI(gameData) {
     myboardContainer.style.backgroundColor = hexToCssColor(myColor('semi-dark'));
     myboardContainer.style.width = `${otherboardContainer.offsetWidth}px`;
     const {board: myBoard, sceneBoard: myBoardScene} = newBoard(true, generatedBoard);
-    gameData.scene.boards.myBoard = myBoardScene;
+    gameData.scene.myBoard = myBoardScene;
     myBoard.id = 'my-board';
     myboardContainer.appendChild(myBoard);
     boardsContainer.appendChild(myboardContainer);
 
-    console.log(gameData.scene);
+    // Return the generated board data for use in game logic
+    return {
+        generatedBoard: generatedBoard,
+        scene: gameData.scene
+    };
 }

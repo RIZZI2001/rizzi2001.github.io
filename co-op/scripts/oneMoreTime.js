@@ -11,11 +11,16 @@ let columnValues = [
     [5, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 3, 3, 3, 5], 
     [3, 2, 2, 2, 1, 1, 1, 0, 1, 1, 1, 2, 2, 2, 3]
 ];
-let numberDiceImgs = ['dice_1.png', 'dice_2.png', 'dice_3.png', 'dice_4.png', 'dice_5.png', 'questionmark.png'];
+let numberDiceImgs = ['dice_1', 'dice_2', 'dice_3', 'dice_4', 'dice_5', 'questionmark'];
 
 let GAME_STATE = {};
 
 document.addEventListener('keydown', async (event) => {
+    if(event.key === 'u') {
+        console.log('scene: ',scene, 'game state: ', GAME_STATE);
+    } else if(event.key === 'r') {
+        scene.setScore('myBoard', 1, '+ 23');
+    }
 });
 
 window.back2Selection = function() {
@@ -37,7 +42,7 @@ window.undo = function() {
 
 function setDie(dieIndex, value) {
     if(dieIndex % 2 === 0) {
-        scene.dice[dieIndex].style.backgroundImage = `url('img/dice_${value}.png')`;
+        scene.dice[dieIndex].style.backgroundImage = `url('img/${numberDiceImgs[value - 1]}.png')`;
     } else {
         scene.dice[dieIndex].style.backgroundColor = colors[value - 1];
     }
@@ -120,13 +125,15 @@ async function loadUtilsAndGenerateUI() {
                 scene: scene,
                 colors: colors,
                 columnValues: columnValues,
-                numberDiceImgs: numberDiceImgs
+                numberDiceImgs: numberDiceImgs,
+                boardClickHandler: boardClickHandler,
             };
             
-            generateUI(gameData).then(() => {
-                // Update scene reference
-                scene = gameData.scene;
-                resolve();
+            generateUI(gameData).then((result) => {
+                // Update scene reference and store generated board
+                scene = result.scene;
+                GAME_STATE.generatedBoard = result.generatedBoard;
+                resolve(result);
             }).catch(reject);
         };
         script.onerror = reject;
@@ -135,15 +142,68 @@ async function loadUtilsAndGenerateUI() {
 }
 
 function initLogic(turn = null) {
+    function setBoardValues() {
+        let b = {
+            grid: Array(7).fill().map(() => Array(15).fill(false)),
+            columns: Array(2).fill().map(() => Array(15).fill(false)),
+            jokers: 0,
+            colors: Array(5).fill().map(() => Array(2).fill(false)),
+            points: Array(5).fill(0)
+        };
+        return b;
+    }
+
     GAME_STATE = {
         diceValues: [0, 1, 2, 3, 4, 5],
         diceRolls: 0,
         myState: 'default',
         currentPlayer: Math.random() < 0.5 ? 'main' : 'second',
         actionsStack: [],
+        boards: {
+            myBoard: setBoardValues(),
+            opponentBoard: setBoardValues()
+        }
     };
     updateTurnIndicator();
     loadUtilsAndGenerateUI();
+}
+
+function boardClickHandler(area, x, y) {
+    console.log(`Board clicked at area: ${area}, x: ${x}, y: ${y}`);
+
+    if(area === 'grid') {
+        if(GAME_STATE.boards.myBoard.grid[y][x]) {
+            GAME_STATE.boards.myBoard.grid[y][x] = false;
+            scene.unCross.grid('myBoard', y, x);
+        } else {
+            GAME_STATE.boards.myBoard.grid[y][x] = true;
+            scene.crossOut.grid('myBoard', y, x);
+        }
+    } else if(area === 'column') {
+        if(GAME_STATE.boards.myBoard.columns[y][x]) {
+            GAME_STATE.boards.myBoard.columns[y][x] = false;
+            scene.unCross.column('myBoard', y, x);
+        } else {
+            GAME_STATE.boards.myBoard.columns[y][x] = true;
+            scene.crossOut.column('myBoard', y, x);
+        }
+    } else if(area === 'joker') {
+        if(GAME_STATE.boards.myBoard.jokers > x) {
+            GAME_STATE.boards.myBoard.jokers--;
+            scene.unCross.joker('myBoard', GAME_STATE.boards.myBoard.jokers);
+        } else {
+            GAME_STATE.boards.myBoard.jokers++;
+            scene.crossOut.joker('myBoard', GAME_STATE.boards.myBoard.jokers - 1);
+        }
+    } else if(area === 'color') {
+        if(GAME_STATE.boards.myBoard.colors[y][x]) {
+            GAME_STATE.boards.myBoard.colors[y][x] = false;
+            scene.unCross.color('myBoard', y, x);
+        } else {
+            GAME_STATE.boards.myBoard.colors[y][x] = true;
+            scene.crossOut.color('myBoard', y, x);
+        }
+    }
 }
 
 if(myRole === 'main') {
