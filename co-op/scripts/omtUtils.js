@@ -260,7 +260,7 @@ function generateBoard(baseSeed = 0) {
         let row = [];
         for (let j = 0; j < BOARD[i].length; j++) {
             const cellValue = BOARD[i][j];
-            row.push( { color: cellValue !== 0 ? coloringResult.colors[cellValue] + 1 : 0, star: false });
+            row.push( { color: cellValue !== 0 ? coloringResult.colors[cellValue] + 1 : 0, star: false, blockID: cellValue });
         }
         COLOREDBOARD.push(row);
     }
