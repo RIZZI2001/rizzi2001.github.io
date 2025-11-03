@@ -314,10 +314,6 @@ function generateBoard(baseSeed = 0) {
             // nth block in this column
             const blockIDx = Math.floor(seededRandom(currentSeed + starsPlaced.length) * targetColumn.blocks.length + blockOffsets[targetColumn.x]) % targetColumn.blocks.length;
             const selectedBlock = targetColumn.blocks[blockIDx];
-            // Sort blocks by amount of y cells decreasing
-            /* const sortedBlocks = [...targetColumn.blocks].sort((a, b) => b.y.length - a.y.length);
-            const blockIDx = blockOffsets[targetColumn.x] % sortedBlocks.length;
-            const selectedBlock = sortedBlocks[blockIDx]; */
 
             const blockNr = selectedBlock.blockID;
             const blockColor = selectedBlock.color;
@@ -355,20 +351,25 @@ async function generateUI(gameData) {
     const omtContainer = document.getElementById('omt-container');
 
     // Utility function to create overlay divs for crossing out
-    function createOverlayDiv() {
+    function createCrossedOverlay() {
+        const overlay = createOverlay(10);
+        overlay.style.backgroundImage = 'url("img/crossed.png")';
+        overlay.style.backgroundSize = 'cover';
+        overlay.style.backgroundRepeat = 'no-repeat';
+        overlay.style.backgroundPosition = 'center';
+        overlay.style.display = 'none';
+        return overlay;
+    }
+
+    function createOverlay(z) {
         const overlay = document.createElement('div');
         overlay.style.position = 'absolute';
         overlay.style.top = '0';
         overlay.style.left = '0';
         overlay.style.width = '100%';
         overlay.style.height = '100%';
-        overlay.style.backgroundImage = 'url("img/crossed.png")';
-        overlay.style.backgroundSize = 'cover';
-        overlay.style.backgroundRepeat = 'no-repeat';
-        overlay.style.backgroundPosition = 'center';
-        overlay.style.display = 'none';
         overlay.style.pointerEvents = 'none';
-        overlay.style.zIndex = '10';
+        overlay.style.zIndex = z;
         return overlay;
     }
 
@@ -395,7 +396,7 @@ async function generateUI(gameData) {
 
     //Generate UI
     gameData.scene = {
-        dice: [],
+        dice: [[], [], [], [], [], []],
         myBoard: null,
         otherBoard: null,
         // Utility functions for crossing out elements
@@ -447,6 +448,17 @@ async function generateUI(gameData) {
             if (gameData.scene[board] && gameData.scene[board].points[fieldId]) {
                 gameData.scene[board].points[fieldId].innerText = score;
             }
+        },
+        setTakenOverlay: function(diceId, role) {
+            const takenOverlay = gameData.scene.dice[diceId][1];
+            if(role === 'main') {
+                takenOverlay.style.backgroundColor = hexToCssColor(mainColorSemiDark);
+            } else if (role === 'second') {
+                takenOverlay.style.backgroundColor = hexToCssColor(secondColorSemiDark);
+            } else {
+                takenOverlay.style.backgroundColor = 'transparent';
+            }
+            takenOverlay.style.opacity = '0.7';
         }
     };
 
@@ -521,7 +533,7 @@ async function generateUI(gameData) {
                 cell.style.backgroundPosition = 'center';
                 
                 // Create overlay div for crossing out
-                const overlay = createOverlayDiv();
+                const overlay = createCrossedOverlay();
 
                 if(buttons) {
                     cell.addEventListener('click', function() {
@@ -550,7 +562,7 @@ async function generateUI(gameData) {
                 cell.innerText = columnValues[i][j];
                 
                 // Create overlay div for crossing out
-                const overlay = createOverlayDiv();
+                const overlay = createCrossedOverlay();
 
                 if(buttons) {
                     cell.addEventListener('click', function() {
@@ -595,7 +607,7 @@ async function generateUI(gameData) {
             cell.style.backgroundPosition = 'center';
             
             // Create overlay div for crossing out - size it to match the button, not the container
-            const overlay = createOverlayDiv();
+            const overlay = createCrossedOverlay();
             // Override positioning for joker buttons to match button size exactly
             overlay.style.width = '36px';
             overlay.style.height = '36px';
@@ -641,7 +653,7 @@ async function generateUI(gameData) {
                 cell.innerText = 5 - j * 2;
                 
                 // Create overlay div for crossing out
-                const overlay = createOverlayDiv();
+                const overlay = createCrossedOverlay();
 
                 if(buttons) {
                     cell.addEventListener('click', function() {
@@ -748,7 +760,7 @@ async function generateUI(gameData) {
         return {board, sceneBoard};
     }
 
-    //dice
+    //Dice
     const diceContainer = document.createElement('div');
     diceContainer.className = 'omt-dice-container';
     const diceContainerHeight = maxHeight / 2 - 20;
@@ -762,45 +774,49 @@ async function generateUI(gameData) {
     innerDiceContainer.style.width = `${diceContainerWidth - 10}px`;
 
     for(let i = 0; i < 6; i++) {
-        const die = document.createElement('div');
+        const die = document.createElement('button');
         die.className = 'omt-die';
         const size = (diceContainerWidth / 2) - 15;
         die.style.width = `${size}px`;
         die.style.height = `${size}px`;
+
+        const takenOverlay = createOverlay(10);
+        takenOverlay.style.borderRadius = '10px';
+
         if( i % 2 === 0 ) {
             die.style.backgroundColor = '#d8d8d8ff';
             die.style.backgroundImage = `url('img/${numberDiceImgs[i]}.png')`;
             die.style.filter = 'invert(1)';
 
+            takenOverlay.style.filter = 'invert(1)';
+
             innerDiceContainer.appendChild(die);
-            gameData.scene.dice.push(die);
+            gameData.scene.dice[i].push(die);
         } else {
-            // Color the cross using the colors array (cycling through colors 1-5)
             const color = colors[i];
             
-            // Keep white background and create colored cross overlay
             die.style.backgroundColor = '#ffffff';
             die.style.position = 'relative';
             
             // Create a pseudo-element for the colored cross
-            const crossOverlay = document.createElement('div');
-            crossOverlay.style.position = 'absolute';
-            crossOverlay.style.top = '0';
-            crossOverlay.style.left = '0';
-            crossOverlay.style.width = '100%';
-            crossOverlay.style.height = '100%';
+            const crossOverlay = createOverlay(5);
             crossOverlay.style.backgroundColor = color;
             crossOverlay.style.mask = `url('img/dice_cross.png')`;
             crossOverlay.style.maskSize = 'contain';
             crossOverlay.style.maskRepeat = 'no-repeat';
             crossOverlay.style.maskPosition = 'center';
-            crossOverlay.style.pointerEvents = 'none';
             
             die.appendChild(crossOverlay);
 
             innerDiceContainer.appendChild(die);
-            gameData.scene.dice.push(crossOverlay);
+            gameData.scene.dice[i].push(crossOverlay);
         }
+        die.appendChild(takenOverlay);
+
+        gameData.scene.dice[i].push(takenOverlay);
+        die.addEventListener('click', function() {
+            boardClickHandler('die', i, 0);
+        });
     }
 
     diceContainer.appendChild(innerDiceContainer);

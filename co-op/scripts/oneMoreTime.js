@@ -20,8 +20,6 @@ let GAME_STATE = {};
 document.addEventListener('keydown', async (event) => {
     if(event.key === 'u') {
         console.log('scene: ',scene, 'game state: ', GAME_STATE);
-    } else if(event.key === 'r') {
-        scene.setScore('myBoard', 1, '+ 23');
     }
 });
 
@@ -48,9 +46,9 @@ window.undo = function() {
 
 function setDie(dieIndex, value) {
     if(dieIndex % 2 === 0) {
-        scene.dice[dieIndex].style.backgroundImage = `url('img/${numberDiceImgs[value - 1]}.png')`;
+        scene.dice[dieIndex][0].style.backgroundImage = `url('img/${numberDiceImgs[value - 1]}.png')`;
     } else {
-        scene.dice[dieIndex].style.backgroundColor = colors[value - 1];
+        scene.dice[dieIndex][0].style.backgroundColor = colors[value - 1];
     }
 }
 
@@ -65,7 +63,7 @@ function animateDice() {
         if(count === 6) {
             clearInterval(interval);
             for(let i = 0; i < 6; i++) {
-                setDie(i, GAME_STATE.diceValues[i]);
+                setDie(i, GAME_STATE.diceValues[i][0]);
             }
         }
     }, 100);
@@ -73,7 +71,7 @@ function animateDice() {
 
 window.rollDice = function() {
     for(let i = 0; i < 6; i++) {
-        GAME_STATE.diceValues[i] = Math.floor(Math.random() * 6) + 1;
+        GAME_STATE.diceValues[i][0] = Math.floor(Math.random() * 6) + 1;
     }
     console.log('Rolled dice values:', GAME_STATE.diceValues);
     //conn.send(packageData('ROLL_DICE', { diceValues: GAME_STATE.diceValues }));
@@ -160,7 +158,7 @@ function initLogic(turn = null) {
     }
 
     GAME_STATE = {
-        diceValues: [0, 1, 2, 3, 4, 5],
+        diceValues: [[0, 'clear'], [1, 'clear'], [2, 'clear'], [3, 'clear'], [4, 'clear'], [5, 'clear']],
         diceRolls: 0,
         myState: 'default',
         currentPlayer: Math.random() < 0.5 ? 'main' : 'second',
@@ -175,8 +173,6 @@ function initLogic(turn = null) {
 }
 
 function boardClickHandler(area, x, y) {
-    console.log(`Board clicked at area: ${area}, x: ${x}, y: ${y}`);
-
     if(area === 'grid') {
         if(GAME_STATE.boards.myBoard.grid[y][x]) {
             GAME_STATE.boards.myBoard.grid[y][x] = false;
@@ -208,6 +204,18 @@ function boardClickHandler(area, x, y) {
         } else {
             GAME_STATE.boards.myBoard.colors[y][x] = true;
             scene.crossOut.color('myBoard', y, x);
+        }
+    } else if(area === 'die') {
+        const taken = GAME_STATE.diceValues[x][1];
+        if(taken === myRole) {
+            GAME_STATE.diceValues[x][1] = otherRole;
+            scene.setTakenOverlay(x, otherRole);
+        } else if(taken === otherRole) {
+            GAME_STATE.diceValues[x][1] = 'clear';
+            scene.setTakenOverlay(x, 'clear');
+        } else {
+            GAME_STATE.diceValues[x][1] = myRole;
+            scene.setTakenOverlay(x, myRole);
         }
     }
 }
