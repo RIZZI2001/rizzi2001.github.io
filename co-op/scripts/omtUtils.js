@@ -342,7 +342,7 @@ function generateBoard(baseSeed = 0) {
     return COLOREDBOARD;
 }
 
-async function generateUI(gameData) {
+async function generateUI(gameData, generatedBoard = null) {
     // Extract all necessary data from gameData parameter
     const { 
         scene, colors, columnValues, numberDiceImgs, boardClickHandler
@@ -388,11 +388,12 @@ async function generateUI(gameData) {
     }
 
     const i = Math.floor(Math.random() * 1000);
-    let generatedBoard;
 
     const seed = await getSeed(i);
     console.log('Using seed:', seed);
-    generatedBoard = generateBoard(parseInt(seed));
+    if(!generatedBoard) {
+        generatedBoard = generateBoard(parseInt(seed));
+    }
 
     //Generate UI
     gameData.scene = {

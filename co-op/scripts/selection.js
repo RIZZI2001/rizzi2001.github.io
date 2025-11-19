@@ -30,7 +30,7 @@
         },
         {
             title: 'One more time',
-            image: 'oneMoreTime.png',
+            image: 'WIP.png',
             link: 'oneMoreTime'
         }
     ];
