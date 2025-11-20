@@ -55,6 +55,53 @@ window.endTurn = function() {
 window.undo = function() {
 }
 
+function enterScores(scores, boardName) {
+    for(let i = 0; i < scores.length; i++) {
+        scene.setScore(boardName, i, scene[boardName].points[i].innerText + ' ' + Math.abs(scores[i]));
+    }
+}
+
+function calculateScores(otherCalcs2 = true) {
+    //colors
+    let scores = [];
+    for(let y = 0; y < 5; y++) {
+        if(GAME_STATE.boards.myBoard.colors[y][0] === 'circle') {
+            scores[0] += 5;
+        } else if(GAME_STATE.boards.myBoard.colors[y][1] === 'circle') {
+            scores[0] += 3;
+        }
+    }
+    //columns
+    for(let x = 0; x < 15; x++) {
+        if(GAME_STATE.boards.myBoard.columns[0][x] === 'circle') {
+            scores[1] += columnValues[0][x];
+        }
+        if(GAME_STATE.boards.myBoard.columns[1][x] === 'circle') {
+            scores[1] += columnValues[1][x];
+        }
+    }
+    //jokers
+    scores[2] = 8 - GAME_STATE.boards.myBoard.jokers;
+    //stars
+    let starCount = 0;
+    for(let y = 0; y < 7; y++) {
+        for(let x = 0; x < 15; x++) {
+            if(GAME_STATE.generatedBoard[y][x].star && !GAME_STATE.boards.myBoard.grid[y][x]) {
+                starCount++;
+            }
+        }
+    }
+    scores[3] = -2 * starCount;
+    //total
+    scores[4] = scores[0] + scores[1] + scores[2] + scores[3];
+    enterScores(scores, 'myBoard');
+    currentPlayerIndicator.innerText = "Game ended";
+    omtContainer.style.background = '#242424ff';
+    currentPlayerIndicator.style.color = '#b3b3b3ff';
+    conn.send(packageData('END_GAME', { scores: scores, otherCalcs2: otherCalcs2 }));
+    return scores[4];
+}
+
 function completeTurn() {
     //Cross out closed columns and colors for both players
     for(let x = 0; x < 15; x++) {
@@ -80,6 +127,13 @@ function completeTurn() {
     //Free dice selections
     for(let i = 0; i < 6; i++) {
         setDieSelect(i, 'clear', false);
+    }
+
+    //Test for end game condition
+    if(GAME_STATE.myClosedColors >= 2) {
+        console.log("Game ended");
+        GAME_STATE.myState = 'gameEnded';
+        calculateScores(true);
     }
 
     GAME_STATE.myState = 'newTurn';
@@ -184,6 +238,31 @@ window.communication = function(command, args) {
             completeTurn();
             break;
         case 'END_GAME':
+            enterScores(args.scores, 'otherBoard');
+            GAME_STATE.myState = 'gameEnded';
+            if(args.otherCalcs2) {
+                const myTotal = calculateScores(false);
+                const otherTotal = args.scores[4];
+                let winnerText, winnerColor;
+                if(myTotal > otherTotal) {
+                    winnerText = `${myName} Wins! ${myTotal} to ${otherTotal}.`;
+                    winnerColor = hexToCssColor(myColor());
+                } else if(myTotal < otherTotal) {
+                    winnerText = `${otherName} Wins! ${otherTotal} to ${myTotal}.`;
+                    winnerColor = hexToCssColor(otherColor());
+                } else {
+                    winnerText = `It\'s a Tie! Both have ${myTotal} points.`;
+                }
+                winnerIndicator.innerText = winnerText;
+                winnerIndicator.style.color = winnerColor;
+                winnerIndicator.style.display = 'block';
+                conn.send(packageData('SHOW_WINNER', {winnerText: winnerText, winnerColor: winnerColor}));
+            }
+            break;
+        case 'SHOW_WINNER':
+            winnerIndicator.innerText = args.winnerText;
+            winnerIndicator.style.color = args.winnerColor;
+            winnerIndicator.style.display = 'block';
             break;
         case 'BACK2SELECT':
             cleanupScene();
@@ -283,6 +362,7 @@ function initLogic(turn = null, generatedBoard = null) {
         budgetLeft: 0,
         otherWaiting: false,
         crossedThisTurn: [],
+        myClosedColors: 0,
         currentPlayer: turn ? turn : Math.random() < 0.5 ? 'main' : 'second',
         boards: {
             myBoard: setBoardValues(),
@@ -442,6 +522,7 @@ function boardClickHandler(area, x, y) {
             }
         }
         GAME_STATE.boards.myBoard.colors[y][x] = 'circle';
+        GAME_STATE.myClosedColors += 1;
         scene.crossOut.color('myBoard', y, x, 'circle');
         conn.send(packageData('CLOSE_COLOR', { x: x, y: y }));
     } else if(area === 'die') {

@@ -437,8 +437,22 @@ async function generateUI(gameData, generatedBoard = null) {
             }
         },
         setScore: function(board, fieldId, score) {
-            if (gameData.scene[board] && gameData.scene[board].points[fieldId]) {
-                gameData.scene[board].points[fieldId].innerText = score;
+            const el = gameData.scene[board] && gameData.scene[board].points[fieldId];
+            if (!el) return;
+            // Write the score (allow strings or numbers)
+            el.innerText = String(score);
+            // Preserve stored default color if present
+            const def = el.dataset.defaultColor;
+            if (def) {
+                el.style.color = def;
+                return;
+            }
+            // If no default color, infer from numeric sign when possible
+            const parsed = Number(String(score).replace(/[^0-9-\.]/g, ''));
+            if (!isNaN(parsed)) {
+                if (parsed > 0) el.style.color = 'limegreen';
+                else if (parsed < 0) el.style.color = 'red';
+                else el.style.color = '';
             }
         },
         setTakenOverlay: function(diceId, role) {
@@ -725,10 +739,15 @@ async function generateUI(gameData, generatedBoard = null) {
                 const textField = document.createElement('div');
                 textField.className = 'omt-points-text-field';
                 textField.innerText = rowData.textContent;
-                if( rowData.textContent == '+' ) {
+                if (rowData.textContent == '+') {
                     textField.style.color = 'limegreen';
-                } else if( rowData.textContent == '-' ) {
+                    textField.dataset.defaultColor = 'limegreen';
+                } else if (rowData.textContent == '-') {
                     textField.style.color = 'red';
+                    textField.dataset.defaultColor = 'red';
+                } else {
+                    textField.style.color = 'black';
+                    textField.dataset.defaultColor = 'black';
                 }
 
                 // Add text field reference to points array
