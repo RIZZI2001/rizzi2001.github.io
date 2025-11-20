@@ -36,13 +36,56 @@ window.back2Selection = function() {
 }
 
 window.endTurn = function() {
-    GAME_STATE.currentPlayer = (GAME_STATE.currentPlayer === 'main') ? 'second' : 'main';
-    updateTurnIndicator();
-
-    conn.send(packageData('END_TURN', {}));
+    if(GAME_STATE.myState == 'newTurn' || GAME_STATE.myState == 'waiting' || (GAME_STATE.myState == 'blockSelected' && GAME_STATE.diceValues[GAME_STATE.selectedNumberDieId][0] !== 0)) {
+        console.log("Cannot end turn before rolling dice or completing actions");
+        return;
+    }
+    GAME_STATE.myState = 'waiting';
+    GAME_STATE.selectedColorDieId = null;
+    GAME_STATE.selectedNumberDieId = null;
+    GAME_STATE.selectedBlock = null;
+    GAME_STATE.budgetLeft = 0;
+    GAME_STATE.crossedThisTurn = [];
+    currentPlayerIndicator.innerText = "Waiting for " + otherName + "...";
+    omtContainer.style.background = '#242424ff';
+    currentPlayerIndicator.style.color = '#b3b3b3ff';
+    conn.send(packageData('WAITING', {}));
 }
 
 window.undo = function() {
+}
+
+function completeTurn() {
+    //Cross out closed columns and colors for both players
+    for(let x = 0; x < 15; x++) {
+        if(GAME_STATE.boards.otherBoard.columns[0][x] === 'circle' && GAME_STATE.boards.myBoard.columns[0][x] == null) {
+            GAME_STATE.boards.myBoard.columns[0][x] = 'cross';
+            scene.crossOut.column('myBoard', 0, x, 'cross');
+        }
+        if(GAME_STATE.boards.myBoard.columns[0][x] === 'circle' && GAME_STATE.boards.otherBoard.columns[0][x] == null) {
+            GAME_STATE.boards.otherBoard.columns[0][x] = 'cross';
+            scene.crossOut.column('otherBoard', 0, x, 'cross');
+        }
+    }
+    for(let y = 0; y < 5; y++) {
+        if(GAME_STATE.boards.otherBoard.colors[y][0] === 'circle' && GAME_STATE.boards.myBoard.colors[y][0] == null) {
+            GAME_STATE.boards.myBoard.colors[y][0] = 'cross';
+            scene.crossOut.color('myBoard', y, 0, 'cross');
+        }
+        if(GAME_STATE.boards.myBoard.colors[y][0] === 'circle' && GAME_STATE.boards.otherBoard.colors[y][0] == null) {
+            GAME_STATE.boards.otherBoard.colors[y][0] = 'cross';
+            scene.crossOut.color('otherBoard', y, 0, 'cross');
+        }
+    }
+    //Free dice selections
+    for(let i = 0; i < 6; i++) {
+        setDieSelect(i, 'clear', false);
+    }
+
+    GAME_STATE.myState = 'newTurn';
+    GAME_STATE.otherWaiting = false;
+    GAME_STATE.currentPlayer = GAME_STATE.currentPlayer === 'main' ? 'second' : 'main';
+    updateTurnIndicator();
 }
 
 function setDie(dieIndex, value) {
@@ -87,7 +130,6 @@ window.rollDice = function() {
 window.communication = function(command, args) {
     switch(command) {
         case 'INIT_GAME':
-            console.log('Received INIT command with args:', args);
             initLogic(args.currentPlayer, args.generatedBoard);
             break;
         case 'ROLL_DICE':
@@ -105,10 +147,41 @@ window.communication = function(command, args) {
             break;
         case 'CROSS_GRID':
             console.log('Crossing opponent grid at', args.x, args.y);
-            GAME_STATE.boards.opponentBoard.grid[args.y][args.x] = true;
-            scene.crossOut.grid('otherBoard', args.y, args.x);
+            GAME_STATE.boards.otherBoard.grid[args.y][args.x] = true;
+            scene.crossOut.grid('otherBoard', args.y, args.x, 'cross');
+            break;
+        case 'CROSS_JOKER':
+            console.log('Crossing opponent joker at', args.id);
+            GAME_STATE.boards.otherBoard.jokers++;
+            scene.crossOut.joker('otherBoard', args.id, 'cross');
+            break;
+        case 'CLOSE_COLUMN':
+            console.log('Closing opponent column at', args.x, args.y);
+            GAME_STATE.boards.otherBoard.columns[args.y][args.x] = 'circle';
+            scene.crossOut.column('otherBoard', args.y, args.x, 'circle');
+            break;
+        case 'CLOSE_COLOR':
+            console.log('Closing opponent color at', args.x, args.y);
+            GAME_STATE.boards.otherBoard.colors[args.y][args.x] = 'circle';
+            scene.crossOut.color('otherBoard', args.y, args.x, 'circle');
+            break;
+        case 'WAITING':
+            console.log('Opponent is waiting');
+            GAME_STATE.otherWaiting = true;
+            if(GAME_STATE.myState === 'waiting') {
+                //Both players are waiting - end turn
+                console.log('Both players are waiting - ending turn');
+                conn.send(packageData('END_TURN', {}));
+                completeTurn();
+            } else {
+                currentPlayerIndicator.innerText = otherName + " is waiting...";
+                omtContainer.style.background = '#242424ff';
+                currentPlayerIndicator.style.color = '#b3b3b3ff';
+            }
             break;
         case 'END_TURN':
+            console.log('Turn ended by opponent');
+            completeTurn();
             break;
         case 'END_GAME':
             break;
@@ -192,9 +265,9 @@ function initLogic(turn = null, generatedBoard = null) {
     function setBoardValues() {
         let b = {
             grid: Array(7).fill().map(() => Array(15).fill(false)),
-            columns: Array(2).fill().map(() => Array(15).fill(false)),
+            columns: Array(2).fill().map(() => Array(15).fill(null)),
             jokers: 0,
-            colors: Array(5).fill().map(() => Array(2).fill(false)),
+            colors: Array(5).fill().map(() => Array(2).fill(null)),
             points: Array(5).fill(0)
         };
         return b;
@@ -208,10 +281,12 @@ function initLogic(turn = null, generatedBoard = null) {
         selectedNumberDieId: null,
         selectedBlock: null,
         budgetLeft: 0,
+        otherWaiting: false,
+        crossedThisTurn: [],
         currentPlayer: turn ? turn : Math.random() < 0.5 ? 'main' : 'second',
         boards: {
             myBoard: setBoardValues(),
-            opponentBoard: setBoardValues()
+            otherBoard: setBoardValues()
         }
     };
     updateTurnIndicator();
@@ -231,7 +306,30 @@ function setDieSelect(dieIndex, status, sendUpdate = true) {
     }
 }
 
+function selectBothDice() {
+    GAME_STATE.myState = 'bothDiceSelected';
+    //check if number joker has been selected
+    if(GAME_STATE.diceValues[GAME_STATE.selectedNumberDieId][0] === 0) {
+        GAME_STATE.budgetLeft = 5;
+        scene.crossOut.joker('myBoard', GAME_STATE.boards.myBoard.jokers, 'cross');
+        conn.send(packageData('CROSS_JOKER', { id: GAME_STATE.boards.myBoard.jokers }));
+        GAME_STATE.boards.myBoard.jokers++;
+    } else {
+        GAME_STATE.budgetLeft = GAME_STATE.diceValues[GAME_STATE.selectedNumberDieId][0];
+    }
+    // check if color joker has been selected
+    if(GAME_STATE.diceValues[GAME_STATE.selectedColorDieId][0] === 0) {
+        scene.crossOut.joker('myBoard', GAME_STATE.boards.myBoard.jokers, 'cross');
+        conn.send(packageData('CROSS_JOKER', { id: GAME_STATE.boards.myBoard.jokers }));
+        GAME_STATE.boards.myBoard.jokers++;
+    }
+    if(GAME_STATE.currentPlayer === myRole) {
+        conn.send(packageData('DICE_SELECTED') );
+    }
+}
+
 function boardClickHandler(area, x, y) {
+    console.log(`Board area ${area} clicked at (${x}, ${y})`);
     if(area === 'grid') {
         if(GAME_STATE.boards.myBoard.grid[y][x]) {
             //Was already crossed - ignore
@@ -251,22 +349,38 @@ function boardClickHandler(area, x, y) {
                 return;
             }
         }
-        if(GAME_STATE.myState == 'bothSelected') {
+        if(GAME_STATE.myState == 'bothDiceSelected') {
             //First cross this move
             //Check if color matches
-            if(GAME_STATE.generatedBoard[y][x].color !== GAME_STATE.diceValues[GAME_STATE.selectedColorDieId][0]) {
+            const c = GAME_STATE.diceValues[GAME_STATE.selectedColorDieId][0];
+            if(GAME_STATE.generatedBoard[y][x].color !== c && c !== 0) {
                 //Color does not match - ignore
                 console.log('Color does not match - ignoring click');
                 return;
             }
-            const blockSize = 6 - Math.floor(GAME_STATE.generatedBoard[y][x].blockID / 5);
-            if(blockSize < GAME_STATE.budgetLeft) {
+            const blockSize = 6 - Math.floor((GAME_STATE.generatedBoard[y][x].blockID - 1) / 5);
+            if(blockSize < GAME_STATE.budgetLeft && GAME_STATE.diceValues[GAME_STATE.selectedNumberDieId][0] !== 0) {
                 //Block too small for budget - ignore
                 console.log('Block too small for budget - ignoring click', blockSize, GAME_STATE.budgetLeft);
                 return;
             }
             GAME_STATE.selectedBlock = GAME_STATE.generatedBoard[y][x].blockID;
             GAME_STATE.myState = 'blockSelected';
+        } else {
+            let borderingCellFound = false;
+            //Not first cross this move -> Has to border at least one other cross from this turn
+            for(let i = 0; i < GAME_STATE.crossedThisTurn.length; i++) {
+                const cell = GAME_STATE.crossedThisTurn[i];
+                if((cell.x === x && (cell.y === y - 1 || cell.y === y + 1)) || (cell.y === y && (cell.x === x - 1 || cell.x === x + 1))) {
+                    // Found a bordering cell
+                    borderingCellFound = true;
+                    break;
+                }
+            }
+            if(!borderingCellFound) {
+                console.log('No bordering cell from this turn - ignoring click');
+                return;
+            }
         }
         if(GAME_STATE.generatedBoard[y][x].blockID !== GAME_STATE.selectedBlock) {
             //Not the selected block - ignore
@@ -275,81 +389,102 @@ function boardClickHandler(area, x, y) {
         //Cross it
         GAME_STATE.budgetLeft -= 1;
         GAME_STATE.boards.myBoard.grid[y][x] = true;
-        scene.crossOut.grid('myBoard', y, x);
+        GAME_STATE.crossedThisTurn.push({ x: x, y: y });
+        scene.crossOut.grid('myBoard', y, x, 'cross');
         conn.send(packageData('CROSS_GRID', { x: x, y: y }));
         if(GAME_STATE.budgetLeft <= 0) {
             //No budget left - go into crossedBlock state
             GAME_STATE.myState = 'crossedBlock';
         }
     } else if(area === 'column') {
-        if(GAME_STATE.boards.myBoard.columns[y][x]) {
-            GAME_STATE.boards.myBoard.columns[y][x] = false;
-            scene.unCross.column('myBoard', y, x);
-        } else {
-            GAME_STATE.boards.myBoard.columns[y][x] = true;
-            scene.crossOut.column('myBoard', y, x);
+        if(!(GAME_STATE.myState == 'crossedBlock' || (GAME_STATE.myState === 'blockSelected' && GAME_STATE.diceValues[GAME_STATE.selectedNumberDieId][0] === 0))) {
+            console.log("Neither used all budget nor used any of the joker - ignore");
+            return;
         }
-    } else if(area === 'joker') {
-        if(GAME_STATE.boards.myBoard.jokers > x) {
-            GAME_STATE.boards.myBoard.jokers--;
-            scene.unCross.joker('myBoard', GAME_STATE.boards.myBoard.jokers);
-        } else {
-            GAME_STATE.boards.myBoard.jokers++;
-            scene.crossOut.joker('myBoard', GAME_STATE.boards.myBoard.jokers - 1);
+        if(GAME_STATE.boards.myBoard.columns[y][x] !== null) {
+            console.log("Column already crossed - ignoring click");
+            return;
         }
+        if(y == 1 && GAME_STATE.boards.myBoard.columns[0][x] !== 'cross') {
+            console.log("Cannot cross second row before other clicked the first - ignoring click");
+            return;
+        }
+        //Check if all cells in the column are crossed
+        for(let row = 0; row < 7; row++) {
+            if(!GAME_STATE.boards.myBoard.grid[row][x]) {
+                console.log("Not all cells in column are crossed - ignoring click");
+                return;
+            }
+        }
+        GAME_STATE.boards.myBoard.columns[y][x] = 'circle';
+        scene.crossOut.column('myBoard', y, x, 'circle');
+        conn.send(packageData('CLOSE_COLUMN', { x: x, y: y }));
     } else if(area === 'color') {
-        if(GAME_STATE.boards.myBoard.colors[y][x]) {
-            GAME_STATE.boards.myBoard.colors[y][x] = false;
-            scene.unCross.color('myBoard', y, x);
-        } else {
-            GAME_STATE.boards.myBoard.colors[y][x] = true;
-            scene.crossOut.color('myBoard', y, x);
+        if(!(GAME_STATE.myState == 'crossedBlock' || (GAME_STATE.myState === 'blockSelected' && GAME_STATE.diceValues[GAME_STATE.selectedNumberDieId][0] === 0))) {
+            console.log("Neither used all budget nor used any of the joker - ignore");
+            return;
         }
+        if(GAME_STATE.boards.myBoard.colors[y][x] !== null) {
+            console.log("Color already crossed - ignoring click");
+            return;
+        }
+        if(x == 1 && GAME_STATE.boards.myBoard.colors[y][0] !== 'cross') {
+            console.log("Cannot cross second column before other clicked the first - ignoring click");
+            return;
+        }
+        //Check if all cells with the selected color are crossed
+        for(let row = 0; row < 7; row++) {
+            for(let col = 0; col < 15; col++) {
+                if(GAME_STATE.generatedBoard[row][col].color === (y+1) && !GAME_STATE.boards.myBoard.grid[row][col]) {
+                    console.log("Not all cells with the selected color are crossed - ignoring click");
+                    return;
+                }
+            }
+        }
+        GAME_STATE.boards.myBoard.colors[y][x] = 'circle';
+        scene.crossOut.color('myBoard', y, x, 'circle');
+        conn.send(packageData('CLOSE_COLOR', { x: x, y: y }));
     } else if(area === 'die') {
         console.log(`Die ${x} clicked`);
         const state = GAME_STATE.myState;
-        if(state !== 'diceSelection' && state != 'numSelected' && state != 'colSelected') {
+        if(state !== 'diceSelection' && state != 'numDiceSelected' && state != 'colDiceSelected') {
             return;
         }
         if(GAME_STATE.diceValues[x][1] === otherRole) {
             return;
         }
+        if(GAME_STATE.diceValues[x][0] === 0 && GAME_STATE.boards.myBoard.jokers >= 8) {
+            console.log('No jokers left to select joker die - ignoring click');
+            return;
+        }
         if(x % 2 === 0) {
             // Number die
             if(GAME_STATE.selectedNumberDieId != null) {
-                setDieSelect(GAME_STATE.selectedNumberDieId, 'clear', true);
+                setDieSelect(GAME_STATE.selectedNumberDieId, 'clear', GAME_STATE.diceRolls > 3);
                 GAME_STATE.selectedNumberDieId = null;
             }
             if(GAME_STATE.selectedNumberDieId !== x) {
                 GAME_STATE.selectedNumberDieId = x;
-                setDieSelect(x, myRole, true);
+                setDieSelect(x, myRole, GAME_STATE.diceRolls > 3);
                 if(state === 'diceSelection') {
-                    GAME_STATE.myState = 'numSelected';
-                } else if(state === 'colSelected') {
-                    GAME_STATE.myState = 'bothSelected';
-                    GAME_STATE.budgetLeft = GAME_STATE.diceValues[GAME_STATE.selectedNumberDieId][0];
-                    if(GAME_STATE.currentPlayer === myRole) {
-                        conn.send(packageData('DICE_SELECTED') );
-                    }
+                    GAME_STATE.myState = 'numDiceSelected';
+                } else if(state === 'colDiceSelected') {
+                    selectBothDice();
                 }
             }
         } else {
             // Color die
             if(GAME_STATE.selectedColorDieId != null) {
-                setDieSelect(GAME_STATE.selectedColorDieId, 'clear', true);
+                setDieSelect(GAME_STATE.selectedColorDieId, 'clear', GAME_STATE.diceRolls > 3);
                 GAME_STATE.selectedColorDieId = null;
             }
             if(GAME_STATE.selectedColorDieId !== x) {
                 GAME_STATE.selectedColorDieId = x;
-                setDieSelect(x, myRole, true);
+                setDieSelect(x, myRole, GAME_STATE.diceRolls > 3);
                 if(state === 'diceSelection') {
-                    GAME_STATE.myState = 'colSelected';
-                } else if(state === 'numSelected') {
-                    GAME_STATE.myState = 'bothSelected';
-                    GAME_STATE.budgetLeft = GAME_STATE.diceValues[GAME_STATE.selectedNumberDieId][0];
-                    if(GAME_STATE.currentPlayer === myRole) {
-                        conn.send(packageData('DICE_SELECTED') );
-                    }
+                    GAME_STATE.myState = 'colDiceSelected';
+                } else if(state === 'numDiceSelected') {
+                    selectBothDice();
                 }
             }
         }

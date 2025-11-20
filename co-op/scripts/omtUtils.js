@@ -395,6 +395,19 @@ async function generateUI(gameData, generatedBoard = null) {
         generatedBoard = generateBoard(parseInt(seed));
     }
 
+    function markCell(cell, type) {
+        console.log('Marking cell with type:', type);
+        if(type === 'cross') {
+            cell.style.backgroundImage = 'url("img/crossed.png")';
+            cell.style.display = 'block';
+        } else if (type === 'circle') {
+            cell.style.backgroundImage = 'url("img/circled.png")';
+            cell.style.display = 'block';
+        } else {
+            cell.style.display = 'none';
+        }
+    }
+
     //Generate UI
     gameData.scene = {
         dice: [[], [], [], [], [], []],
@@ -402,46 +415,24 @@ async function generateUI(gameData, generatedBoard = null) {
         otherBoard: null,
         // Utility functions for crossing out elements
         crossOut: {
-            grid: function(board, row, col) {
+            grid: function(board, row, col, type) {
                 if (gameData.scene[board] && gameData.scene[board].grid[row] && gameData.scene[board].grid[row][col]) {
-                    gameData.scene[board].grid[row][col].style.display = 'block';
+                    markCell(gameData.scene[board].grid[row][col], type);
                 }
             },
-            column: function(board, row, col) {
+            column: function(board, row, col, type) {
                 if (gameData.scene[board] && gameData.scene[board].column[row] && gameData.scene[board].column[row][col]) {
-                    gameData.scene[board].column[row][col].style.display = 'block';
+                    markCell(gameData.scene[board].column[row][col], type);
                 }
             },
-            joker: function(board, index) {
+            joker: function(board, index, type) {
                 if (gameData.scene[board] && gameData.scene[board].joker[index]) {
-                    gameData.scene[board].joker[index].style.display = 'block';
+                    markCell(gameData.scene[board].joker[index], type);
                 }
             },
-            color: function(board, row, col) {
+            color: function(board, row, col, type) {
                 if (gameData.scene[board] && gameData.scene[board].color[row] && gameData.scene[board].color[row][col]) {
-                    gameData.scene[board].color[row][col].style.display = 'block';
-                }
-            }
-        },
-        unCross: {
-            grid: function(board, row, col) {
-                if (gameData.scene[board] && gameData.scene[board].grid[row] && gameData.scene[board].grid[row][col]) {
-                    gameData.scene[board].grid[row][col].style.display = 'none';
-                }
-            },
-            column: function(board, row, col) {
-                if (gameData.scene[board] && gameData.scene[board].column[row] && gameData.scene[board].column[row][col]) {
-                    gameData.scene[board].column[row][col].style.display = 'none';
-                }
-            },
-            joker: function(board, index) {
-                if (gameData.scene[board] && gameData.scene[board].joker[index]) {
-                    gameData.scene[board].joker[index].style.display = 'none';
-                }
-            },
-            color: function(board, colorIndex, value) {
-                if (gameData.scene[board] && gameData.scene[board].color[colorIndex] && gameData.scene[board].color[colorIndex][value]) {
-                    gameData.scene[board].color[colorIndex][value].style.display = 'none';
+                    markCell(gameData.scene[board].color[row][col], type);
                 }
             }
         },
@@ -614,12 +605,6 @@ async function generateUI(gameData, generatedBoard = null) {
             overlay.style.height = '36px';
             overlay.style.top = '0';
             overlay.style.left = '10px';
-
-            if(buttons) {
-                cell.addEventListener('click', function() {
-                    boardClickHandler('joker', j, 0);
-                });
-            }
 
             cellContainer.appendChild(cell);
             cellContainer.appendChild(overlay);
