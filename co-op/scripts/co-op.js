@@ -9,6 +9,20 @@ let myRole = null; // The actor of the game
 let otherRole = null; // The other actor of the game
 let initSent = false;
 
+// Queue for messages received while a page-specific handler isn't ready
+window._pendingMessages = [];
+window._flushPendingMessages = function() {
+    if (typeof communication !== 'function') return;
+    while (window._pendingMessages.length) {
+        const msg = window._pendingMessages.shift();
+        try {
+            communication(msg.command, msg.args);
+        } catch (e) {
+            console.error('Error delivering pending message', msg.command, e);
+        }
+    }
+};
+
 let selectedGame = {
     'main': null,
     'other': null
@@ -158,7 +172,13 @@ function handleData(data) {
             switch2(args.page);
             break;
         default:
-            communication(command, args);
+            if (typeof communication === 'function') {
+                communication(command, args);
+            } else {
+                // Page-specific handler not loaded yet — queue message
+                console.log('Handler not ready, queuing command:', command);
+                window._pendingMessages.push({ command, args });
+            }
     }
 }
 

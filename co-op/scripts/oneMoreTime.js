@@ -231,6 +231,10 @@ window.communication = function(command, args) {
                 currentPlayerIndicator.innerText = otherName + " is waiting...";
                 omtContainer.style.background = '#242424ff';
                 currentPlayerIndicator.style.color = '#b3b3b3ff';
+                if(GAME_STATE.myState === 'newTurn') {
+                    //Other player ended turn without doing anything - it's my turn
+                    GAME_STATE.myState = 'diceSelection';
+                }
             }
             break;
         case 'END_TURN':
