@@ -210,11 +210,12 @@ class Camera {
 }
 
 class DirectionalLight {
-    constructor(position, direction, color, fov) {
+    constructor(position, direction, color, fov, range) {
         this.position = position;
         this.direction = direction.normalize();
-        this.color = color; // RGB values (0-1 range)
-        this.fov = fov * Math.PI / 180; // Convert to radians
+        this.color = color;
+        this.fov = fov * Math.PI / 180;
+        this.range = range; // Maximum distance the light affects
     }
     
     getViewMatrix() {
@@ -227,5 +228,14 @@ class DirectionalLight {
     getProjectionMatrix(aspect = 1, near = 0.1, far = 1000) {
         const m = Mat4.perspective(this.fov, aspect, near, far);
         return m.data;
+    }
+}
+
+class SphereLight {
+    constructor(position = new Vec3(0, 0, 0), color = new Vec3(1, 1, 1), range = 100, intensity = 1.0) {
+        this.position = position;
+        this.color = color;
+        this.range = range;
+        this.intensity = intensity;
     }
 }
