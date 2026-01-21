@@ -188,14 +188,14 @@ class GameObject {
 }
 
 class Camera {
-    constructor(fov = 45, aspect = 1, near = 0.1, far = 1000) {
+    constructor(fov, aspect, near, far, position, target, up) {
         this.fov = fov * Math.PI / 180; // Convert to radians
         this.aspect = aspect;
         this.near = near;
         this.far = far;
-        this.position = new Vec3(0, 0, 5);
-        this.target = new Vec3(0, 0, 0);
-        this.up = new Vec3(0, 1, 0);
+        this.position = position;
+        this.target = target;
+        this.up = up;
     }
     
     getViewMatrix() {
@@ -205,6 +205,27 @@ class Camera {
     
     getProjectionMatrix() {
         const m = Mat4.perspective(this.fov, this.aspect, this.near, this.far);
+        return m.data;
+    }
+}
+
+class DirectionalLight {
+    constructor(position, direction, color, fov) {
+        this.position = position;
+        this.direction = direction.normalize();
+        this.color = color; // RGB values (0-1 range)
+        this.fov = fov * Math.PI / 180; // Convert to radians
+    }
+    
+    getViewMatrix() {
+        const target = this.position.add(this.direction);
+        const up = new Vec3(0, 1, 0);
+        const m = Mat4.lookAt(this.position, target, up);
+        return m.data;
+    }
+    
+    getProjectionMatrix(aspect = 1, near = 0.1, far = 1000) {
+        const m = Mat4.perspective(this.fov, aspect, near, far);
         return m.data;
     }
 }
