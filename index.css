@@ -46,6 +46,17 @@ h1 {
     margin-top: 10px;
 }
 
+#tynt-button {
+    color: #5421e0;
+    background-color: black;
+    border: #5421e0 5px solid;
+    padding: 5px;
+}
+
+#tynt-icon {
+    height: 35px;
+}
+
 #co-op-button {
     color: #3c90c0;
     border: #3c90c0 5px solid;

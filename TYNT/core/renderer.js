@@ -21,8 +21,8 @@ class WebGLRenderer {
     }
     
     async initShaders() {
-        let vertexSource = await (await fetch('/Riper3/shaders/vertex.glsl')).text();
-        let fragmentSource = await (await fetch('/Riper3/shaders/fragment.glsl')).text();
+        let vertexSource = await (await fetch('/TYNT/shaders/vertex.glsl')).text();
+        let fragmentSource = await (await fetch('/TYNT/shaders/fragment.glsl')).text();
         
         // Inject MAX_LIGHTS define
         const maxLightsDefine = `#define MAX_LIGHTS ${WebGLRenderer.MAX_LIGHTS}\n`;
@@ -30,9 +30,8 @@ class WebGLRenderer {
         fragmentSource = maxLightsDefine + fragmentSource;
         
         // Load textures
-        await this.loadTexture('/Riper3/textures/stone.png');
-        await this.loadNormalMap('/Riper3/textures/normalMaps/stone.png');
-
+        await this.loadTexture('/TYNT/textures/stone.png');
+        await this.loadNormalMap('/TYNT/textures/normalMaps/stone.png');
         const vertexShader = this.compileShader(vertexSource, this.gl.VERTEX_SHADER);
         const fragmentShader = this.compileShader(fragmentSource, this.gl.FRAGMENT_SHADER);
         
