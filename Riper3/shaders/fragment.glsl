@@ -2,6 +2,8 @@ precision mediump float;
 
 varying vec3 vNormal;
 varying vec3 vFragPos;
+varying vec2 vTexCoord;
+varying mat3 vTBN;
 
 uniform vec3 uAmbientColor;
 
@@ -17,9 +19,16 @@ uniform float uPointLightRanges[MAX_LIGHTS];
 uniform float uRoughness;
 uniform vec3 uCameraPos;
 uniform float uSpecularStrength;
+uniform sampler2D uTexture;
+uniform sampler2D uNormalMap;
 
 void main() {
-    vec3 norm = normalize(vNormal);
+    // Sample normal map and convert from [0,1] to [-1,1]
+    vec3 normalMapSample = texture2D(uNormalMap, vTexCoord).rgb;
+    vec3 normalMapNormal = normalize(normalMapSample * 2.0 - 1.0);
+    
+    // Transform normal map to world space using TBN matrix
+    vec3 norm = normalize(vTBN * normalMapNormal);
     vec3 viewDir = normalize(uCameraPos - vFragPos);
     vec3 ambient = uAmbientColor;
     vec3 diffuse = vec3(0.0);
@@ -61,5 +70,7 @@ void main() {
     }
     
     vec3 result = (ambient + diffuse + specular);
+    vec4 texColor = texture2D(uTexture, vTexCoord);
+    result *= texColor.rgb;
     gl_FragColor = vec4(result, 1.0);
 }
