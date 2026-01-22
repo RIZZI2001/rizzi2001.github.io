@@ -1,11 +1,15 @@
 class WebGLRenderer {
+    static MAX_LIGHTS = 3;
+
     constructor() {
         this.canvas = document.getElementById('glCanvas');
-        this.gl = this.canvas.getContext('webgl');
+        this.gl = this.canvas.getContext('webgl2');
         this.shaderProgram = null;
-        this.scene = { objects: [], lights: [] };
+        this.scene = { objects: [], directionalLights: [], pointLights: [] };
         this.camera = null;
         this.startTime = Date.now();
+        this.lastFrameTime = this.startTime;
+        this.fps = 0;
         
         (async () => {
             await this.initShaders();
@@ -17,9 +21,14 @@ class WebGLRenderer {
     }
     
     async initShaders() {
-        const vertexSource = await (await fetch('/Riper3/shaders/vertex.glsl')).text();
-        const fragmentSource = await (await fetch('/Riper3/shaders/fragment.glsl')).text();
+        let vertexSource = await (await fetch('/Riper3/shaders/vertex.glsl')).text();
+        let fragmentSource = await (await fetch('/Riper3/shaders/fragment.glsl')).text();
         
+        // Inject MAX_LIGHTS define
+        const maxLightsDefine = `#define MAX_LIGHTS ${WebGLRenderer.MAX_LIGHTS}\n`;
+        vertexSource = maxLightsDefine + vertexSource;
+        fragmentSource = maxLightsDefine + fragmentSource;
+
         const vertexShader = this.compileShader(vertexSource, this.gl.VERTEX_SHADER);
         const fragmentShader = this.compileShader(fragmentSource, this.gl.FRAGMENT_SHADER);
         
@@ -32,7 +41,7 @@ class WebGLRenderer {
             console.error('Program link error:', this.gl.getProgramInfoLog(this.shaderProgram));
         }
         
-        this.programInfo = {
+        this.shaderVariables = {
             attribLocations: {
                 vertexPosition: this.gl.getAttribLocation(this.shaderProgram, 'aVertexPosition'),
                 normal: this.gl.getAttribLocation(this.shaderProgram, 'aNormal'),
@@ -43,68 +52,52 @@ class WebGLRenderer {
                 uProjection: this.gl.getUniformLocation(this.shaderProgram, 'uProjection'),
                 uNormalMatrix: this.gl.getUniformLocation(this.shaderProgram, 'uNormalMatrix'),
                 uAmbientColor: this.gl.getUniformLocation(this.shaderProgram, 'uAmbientColor'),
-                uAmbientStrength: this.gl.getUniformLocation(this.shaderProgram, 'uAmbientStrength'),
-                uDirLightCount: this.gl.getUniformLocation(this.shaderProgram, 'uDirLightCount'),
-                uDirLightDirections: [
-                    this.gl.getUniformLocation(this.shaderProgram, 'uDirLightDirections[0]'),
-                    this.gl.getUniformLocation(this.shaderProgram, 'uDirLightDirections[1]'),
-                ],
-                uDirLightColors: [
-                    this.gl.getUniformLocation(this.shaderProgram, 'uDirLightColors[0]'),
-                    this.gl.getUniformLocation(this.shaderProgram, 'uDirLightColors[1]'),
-                ],
-                uDirLightRanges: [
-                    this.gl.getUniformLocation(this.shaderProgram, 'uDirLightRanges[0]'),
-                    this.gl.getUniformLocation(this.shaderProgram, 'uDirLightRanges[1]'),
-                ],
-                uDirLightPositions: [
-                    this.gl.getUniformLocation(this.shaderProgram, 'uDirLightPositions[0]'),
-                    this.gl.getUniformLocation(this.shaderProgram, 'uDirLightPositions[1]'),
-                ],
-                uPointLightCount: this.gl.getUniformLocation(this.shaderProgram, 'uPointLightCount'),
-                uPointLightPositions: [
-                    this.gl.getUniformLocation(this.shaderProgram, 'uPointLightPositions[0]'),
-                    this.gl.getUniformLocation(this.shaderProgram, 'uPointLightPositions[1]'),
-                ],
-                uPointLightColors: [
-                    this.gl.getUniformLocation(this.shaderProgram, 'uPointLightColors[0]'),
-                    this.gl.getUniformLocation(this.shaderProgram, 'uPointLightColors[1]'),
-                ],
-                uPointLightRanges: [
-                    this.gl.getUniformLocation(this.shaderProgram, 'uPointLightRanges[0]'),
-                    this.gl.getUniformLocation(this.shaderProgram, 'uPointLightRanges[1]'),
-                ],
-                uPointLightIntensities: [
-                    this.gl.getUniformLocation(this.shaderProgram, 'uPointLightIntensities[0]'),
-                    this.gl.getUniformLocation(this.shaderProgram, 'uPointLightIntensities[1]'),
-                ],
+                uDirLight: {
+                    count: this.gl.getUniformLocation(this.shaderProgram, 'uDirLightCount'),
+                },
+                uPointLight: {
+                    count: this.gl.getUniformLocation(this.shaderProgram, 'uPointLightCount'),
+                },
                 uRoughness: this.gl.getUniformLocation(this.shaderProgram, 'uRoughness'),
             }
         };
+        // Setup array uniform locations for lights
+        this.shaderVariables.uniformLocations.uDirLight.directions = Array.from({ length: WebGLRenderer.MAX_LIGHTS }, (_, i) =>
+            this.gl.getUniformLocation(this.shaderProgram, `uDirLightDirections[${i}]`)
+        );
+        this.shaderVariables.uniformLocations.uDirLight.colors = Array.from({ length: WebGLRenderer.MAX_LIGHTS }, (_, i) =>
+            this.gl.getUniformLocation(this.shaderProgram, `uDirLightColors[${i}]`)
+        );
+        this.shaderVariables.uniformLocations.uPointLight.positions = Array.from({ length: WebGLRenderer.MAX_LIGHTS }, (_, i) =>
+            this.gl.getUniformLocation(this.shaderProgram, `uPointLightPositions[${i}]`)
+        );
+        this.shaderVariables.uniformLocations.uPointLight.colors = Array.from({ length: WebGLRenderer.MAX_LIGHTS }, (_, i) =>
+            this.gl.getUniformLocation(this.shaderProgram, `uPointLightColors[${i}]`)
+        );
+        this.shaderVariables.uniformLocations.uPointLight.ranges = Array.from({ length: WebGLRenderer.MAX_LIGHTS }, (_, i) =>
+            this.gl.getUniformLocation(this.shaderProgram, `uPointLightRanges[${i}]`)
+        );
     }
     
     compileShader(source, type) {
         const shader = this.gl.createShader(type);
         this.gl.shaderSource(shader, source);
         this.gl.compileShader(shader);
-        
         if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
             console.error('Shader compile error:', this.gl.getShaderInfoLog(shader));
         }
-        
         return shader;
     }
     
     setupScene() {
         this.camera = new Camera(45, this.canvas.width / this.canvas.height, 0.1, 1000, new Vec3(0, 0, 5), new Vec3(0, 0, 0), new Vec3(0, 1, 0));
-        const dirLight = new DirectionalLight(new Vec3(-3, 0, 5), new Vec3(0.5, 0, -1), new Vec3(1, 1, 0.1), 45, 100);
-        const sphereLight = new SphereLight(new Vec3(5, 0, 3), new Vec3(1, 0, 0), 50, 1.0);
-        const cubeMesh = this.createCubeMesh();
         const cubeObject = new GameObject();
-        cubeObject.mesh = cubeMesh;
-        this.scene.lights.push(dirLight);
-        this.scene.lights.push(sphereLight);
+        cubeObject.mesh = this.createCubeMesh();
         this.scene.objects.push(cubeObject);
+        const dirLight = new DirectionalLight(new Vec3(2, 0, -1), new Vec3(1, 1, 0));
+        this.scene.directionalLights.push(dirLight);
+        const pointLight = new PointLight(new Vec3(5, 0, 3), new Vec3(1, 0, 0), 50);
+        this.scene.pointLights.push(pointLight);
         
         this.gl.clearColor(0, 0, 0, 1.0);
         this.gl.enable(this.gl.DEPTH_TEST);
@@ -258,72 +251,53 @@ class WebGLRenderer {
         const viewMatrix = this.camera.getViewMatrix();
         const projMatrix = this.camera.getProjectionMatrix();
         const elapsed = (Date.now() - this.startTime) / 1000;
+
+        this.gl.uniform3f(this.shaderVariables.uniformLocations.uAmbientColor, 0.3, 0.3, 0.3);
+
+        this.gl.uniform1f(this.shaderVariables.uniformLocations.uRoughness, 0.5);
         
-        // Set ambient light
-        this.gl.uniform3f(this.programInfo.uniformLocations.uAmbientColor, 0.3, 0.3, 0.3);
-        this.gl.uniform1f(this.programInfo.uniformLocations.uAmbientStrength, 0.4);
+        //Setup lights on GPU
+        const activeDirLights = Math.min(this.scene.directionalLights.length, WebGLRenderer.MAX_LIGHTS);
+        const activePointLights = Math.min(this.scene.pointLights.length, WebGLRenderer.MAX_LIGHTS);
         
-        // Set roughness
-        this.gl.uniform1f(this.programInfo.uniformLocations.uRoughness, 0.5);
-        
-        // Separate directional and point lights
-        let dirLightIndex = 0;
-        let pointLightIndex = 0;
-        
-        for (let i = 0; i < this.scene.lights.length; i++) {
-            const light = this.scene.lights[i];
-            
-            if (light instanceof DirectionalLight && dirLightIndex < 2) {
-                this.gl.uniform3f(
-                    this.programInfo.uniformLocations.uDirLightPositions[dirLightIndex],
-                    light.position.x,
-                    light.position.y,
-                    light.position.z
-                );
-                this.gl.uniform3f(
-                    this.programInfo.uniformLocations.uDirLightDirections[dirLightIndex],
-                    light.direction.x,
-                    light.direction.y,
-                    light.direction.z
-                );
-                this.gl.uniform3f(
-                    this.programInfo.uniformLocations.uDirLightColors[dirLightIndex],
-                    light.color.x,
-                    light.color.y,
-                    light.color.z
-                );
-                this.gl.uniform1f(
-                    this.programInfo.uniformLocations.uDirLightRanges[dirLightIndex],
-                    light.range
-                );
-                dirLightIndex++;
-            } else if (light instanceof SphereLight && pointLightIndex < 2) {
-                this.gl.uniform3f(
-                    this.programInfo.uniformLocations.uPointLightPositions[pointLightIndex],
-                    light.position.x,
-                    light.position.y,
-                    light.position.z
-                );
-                this.gl.uniform3f(
-                    this.programInfo.uniformLocations.uPointLightColors[pointLightIndex],
-                    light.color.x,
-                    light.color.y,
-                    light.color.z
-                );
-                this.gl.uniform1f(
-                    this.programInfo.uniformLocations.uPointLightRanges[pointLightIndex],
-                    light.range
-                );
-                this.gl.uniform1f(
-                    this.programInfo.uniformLocations.uPointLightIntensities[pointLightIndex],
-                    light.intensity
-                );
-                pointLightIndex++;
-            }
+        for (let i = 0; i < activeDirLights; i++) {
+            const light = this.scene.directionalLights[i];
+            this.gl.uniform3f(
+                this.shaderVariables.uniformLocations.uDirLight.directions[i],
+                light.direction.x,
+                light.direction.y,
+                light.direction.z
+            );
+            this.gl.uniform3f(
+                this.shaderVariables.uniformLocations.uDirLight.colors[i],
+                light.color.x,
+                light.color.y,
+                light.color.z
+            );
         }
         
-        this.gl.uniform1i(this.programInfo.uniformLocations.uDirLightCount, dirLightIndex);
-        this.gl.uniform1i(this.programInfo.uniformLocations.uPointLightCount, pointLightIndex);
+        for (let i = 0; i < activePointLights; i++) {
+            const light = this.scene.pointLights[i];
+            this.gl.uniform3f(
+                this.shaderVariables.uniformLocations.uPointLight.positions[i],
+                light.position.x,
+                light.position.y,
+                light.position.z
+            );
+            this.gl.uniform3f(
+                this.shaderVariables.uniformLocations.uPointLight.colors[i],
+                light.color.x,
+                light.color.y,
+                light.color.z
+            );
+            this.gl.uniform1f(
+                this.shaderVariables.uniformLocations.uPointLight.ranges[i],
+                light.range
+            );
+        }
+        
+        this.gl.uniform1i(this.shaderVariables.uniformLocations.uDirLight.count, activeDirLights);
+        this.gl.uniform1i(this.shaderVariables.uniformLocations.uPointLight.count, activePointLights);
         
         for (let object of this.scene.objects) {
             object.rotation.x = elapsed;
@@ -333,31 +307,50 @@ class WebGLRenderer {
             const worldMatrix = object.getWorldMatrix();
             this.drawMesh(object.mesh, worldMatrix, viewMatrix, projMatrix);
         }
+
+        this.fps = 1 / ((Date.now() - this.lastFrameTime) / 1000);
+        this.lastFrameTime = Date.now();
+        this.updateDebugInfo();
         
         requestAnimationFrame(() => this.render());
     }
     
     drawMesh(mesh, worldMatrix, viewMatrix, projMatrix) {
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, mesh.positionBuffer);
-        this.gl.vertexAttribPointer(this.programInfo.attribLocations.vertexPosition, 3, this.gl.FLOAT, false, 0, 0);
-        this.gl.enableVertexAttribArray(this.programInfo.attribLocations.vertexPosition);
+        this.gl.vertexAttribPointer(this.shaderVariables.attribLocations.vertexPosition, 3, this.gl.FLOAT, false, 0, 0);
+        this.gl.enableVertexAttribArray(this.shaderVariables.attribLocations.vertexPosition);
         
         if (mesh.normalBuffer) {
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, mesh.normalBuffer);
-            this.gl.vertexAttribPointer(this.programInfo.attribLocations.normal, 3, this.gl.FLOAT, false, 0, 0);
-            this.gl.enableVertexAttribArray(this.programInfo.attribLocations.normal);
+            this.gl.vertexAttribPointer(this.shaderVariables.attribLocations.normal, 3, this.gl.FLOAT, false, 0, 0);
+            this.gl.enableVertexAttribArray(this.shaderVariables.attribLocations.normal);
         }
         
         this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
         
-        this.gl.uniformMatrix4fv(this.programInfo.uniformLocations.uModel, false, worldMatrix);
-        this.gl.uniformMatrix4fv(this.programInfo.uniformLocations.uView, false, viewMatrix);
-        this.gl.uniformMatrix4fv(this.programInfo.uniformLocations.uProjection, false, projMatrix);
+        this.gl.uniformMatrix4fv(this.shaderVariables.uniformLocations.uModel, false, worldMatrix);
+        this.gl.uniformMatrix4fv(this.shaderVariables.uniformLocations.uView, false, viewMatrix);
+        this.gl.uniformMatrix4fv(this.shaderVariables.uniformLocations.uProjection, false, projMatrix);
         
         const normalMatrix = this.computeNormalMatrix(worldMatrix);
-        this.gl.uniformMatrix3fv(this.programInfo.uniformLocations.uNormalMatrix, false, normalMatrix);
+        this.gl.uniformMatrix3fv(this.shaderVariables.uniformLocations.uNormalMatrix, false, normalMatrix);
         
         this.gl.drawElements(this.gl.TRIANGLES, mesh.vertexCount, this.gl.UNSIGNED_SHORT, 0);
+    }
+    
+    updateDebugInfo() {
+        const debugBox = document.getElementById('debugInfo');
+        if (debugBox) {
+            const info = [
+                `FPS: ${this.fps.toFixed(1)}`,
+                `Objects: ${this.scene.objects.length}`,
+                `Dir Lights: ${this.scene.directionalLights.length}`,
+                `Point Lights: ${this.scene.pointLights.length}`,
+                `Canvas: ${this.canvas.width}x${this.canvas.height}`,
+                `Elapsed: ${((Date.now() - this.startTime) / 1000).toFixed(2)}s`
+            ].join('\n');
+            debugBox.textContent = info;
+        }
     }
 }
 

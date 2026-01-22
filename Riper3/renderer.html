@@ -11,10 +11,29 @@
             overflow: hidden;
             font-family: Arial, sans-serif;
         }
+        
+        #debugInfo {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #00ff00;
+            padding: 15px;
+            border: 1px solid #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 300px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
     </style>
 </head>
 <body>
     <canvas id="glCanvas"></canvas>
+    <div id="debugInfo"></div>
     <script src="core/math.js"></script>
     <script src="core/renderer.js"></script>
 </body>

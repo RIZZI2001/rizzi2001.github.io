@@ -63,10 +63,10 @@ window.communication = function(command, args) {
             GAME_STATE.bag = args.bag;
             remainingBlocksIndicator.innerText = GAME_STATE.bag.length + ' Blocks left';
             updateTurnIndicator();
-            updateScore();
+            updateScoreDisplay();
             break;
         case 'END_GAME':
-            updateScore();
+            updateScoreDisplay();
             showWinner(args.winner);
             break;
         case 'BACK2SELECT':
@@ -727,7 +727,7 @@ function initLogic(bag = null, maxPlacableBlocksofOther = 0) {
 
     endTurnButton.style.display = 'none';
     undoButton.style.display = 'none';
-    updateScore();
+    updateScoreDisplay();
 
     if(myRole == 'main') {
         const maxPlacableBlocks = getMaxPlacableBlocks(GAME_STATE.hand);
@@ -780,7 +780,7 @@ function showWinner(winnerName) {
     winnerIndicator.style.display = 'block';
 }
 
-function updateScore() {
+function updateScoreDisplay() {
     scoreIndicator.innerHTML = `<span style="color: ${hexToCssColor(myColor())}">${myName}: ${GAME_STATE[myRole]}</span> | <span style="color: ${hexToCssColor(otherColor())}">${otherName}: ${GAME_STATE[otherRole]}</span>`;
 }
 
@@ -817,12 +817,13 @@ window.endTurn = function() {
     remainingBlocksIndicator.innerText = GAME_STATE.bag.length + ' Blocks left';
     if(GAME_STATE.hand.length == 0) {
         GAME_STATE[myRole] += 6;
-        updateScore();
-
+        updateScoreDisplay();
+        
         let winnerName = GAME_STATE[myRole] > GAME_STATE[otherRole] ? myName : otherName;
         if(GAME_STATE[myRole] == GAME_STATE[otherRole]) {
             winnerName = 'Both players';
         }
+        console.log('You ended the game.', GAME_STATE[myRole], GAME_STATE[otherRole], winnerName);
         conn.send(packageData('END_GAME', { winner: winnerName }));
 
         showWinner(winnerName);
@@ -862,7 +863,7 @@ window.endTurn = function() {
         }
         console.log('Score this turn: ', score);
         GAME_STATE[myRole] += score;
-        updateScore();
+        updateScoreDisplay();
     }
 
     GAME_STATE.movesThisTurn = [];
