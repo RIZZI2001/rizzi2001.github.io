@@ -51,6 +51,7 @@ class WebGLRenderer {
                 uView: this.gl.getUniformLocation(this.shaderProgram, 'uView'),
                 uProjection: this.gl.getUniformLocation(this.shaderProgram, 'uProjection'),
                 uNormalMatrix: this.gl.getUniformLocation(this.shaderProgram, 'uNormalMatrix'),
+                uCameraPos: this.gl.getUniformLocation(this.shaderProgram, 'uCameraPos'),
                 uAmbientColor: this.gl.getUniformLocation(this.shaderProgram, 'uAmbientColor'),
                 uDirLight: {
                     count: this.gl.getUniformLocation(this.shaderProgram, 'uDirLightCount'),
@@ -59,6 +60,7 @@ class WebGLRenderer {
                     count: this.gl.getUniformLocation(this.shaderProgram, 'uPointLightCount'),
                 },
                 uRoughness: this.gl.getUniformLocation(this.shaderProgram, 'uRoughness'),
+                uSpecularStrength: this.gl.getUniformLocation(this.shaderProgram, 'uSpecularStrength'),
             }
         };
         // Setup array uniform locations for lights
@@ -94,9 +96,9 @@ class WebGLRenderer {
         const cubeObject = new GameObject();
         cubeObject.mesh = this.createCubeMesh();
         this.scene.objects.push(cubeObject);
-        const dirLight = new DirectionalLight(new Vec3(2, 0, -1), new Vec3(1, 1, 0));
+        const dirLight = new DirectionalLight(new Vec3(2, 0, -1), new Vec3(1, 1, 0.1));
         this.scene.directionalLights.push(dirLight);
-        const pointLight = new PointLight(new Vec3(5, 0, 3), new Vec3(1, 0, 0), 50);
+        const pointLight = new PointLight(new Vec3(2, 0, 1), new Vec3(3, 0.3, 0.2), 50);
         this.scene.pointLights.push(pointLight);
         
         this.gl.clearColor(0, 0, 0, 1.0);
@@ -252,9 +254,11 @@ class WebGLRenderer {
         const projMatrix = this.camera.getProjectionMatrix();
         const elapsed = (Date.now() - this.startTime) / 1000;
 
-        this.gl.uniform3f(this.shaderVariables.uniformLocations.uAmbientColor, 0.3, 0.3, 0.3);
+        this.gl.uniform3f(this.shaderVariables.uniformLocations.uCameraPos, this.camera.position.x, this.camera.position.y, this.camera.position.z);
+        this.gl.uniform3f(this.shaderVariables.uniformLocations.uAmbientColor, 0.1, 0.1, 0.1);
 
         this.gl.uniform1f(this.shaderVariables.uniformLocations.uRoughness, 0.5);
+        this.gl.uniform1f(this.shaderVariables.uniformLocations.uSpecularStrength, 3);
         
         //Setup lights on GPU
         const activeDirLights = Math.min(this.scene.directionalLights.length, WebGLRenderer.MAX_LIGHTS);
