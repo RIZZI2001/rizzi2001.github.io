@@ -9,7 +9,7 @@ class WebGLRenderer {
         this.camera = null;
         this.startTime = Date.now();
         this.lastFrameTime = this.startTime;
-        this.fps = 0;
+        this.fps = 60;
         
         (async () => {
             await this.initShaders();
@@ -138,7 +138,7 @@ class WebGLRenderer {
     }
     
     setupScene() {
-        this.camera = new Camera(45, this.canvas.width / this.canvas.height, 0.1, 1000, new Vec3(0, 0, 5), new Vec3(0, 0, 0), new Vec3(0, 1, 0));
+        this.camera = new Camera(45, this.canvas.width / this.canvas.height, 0.1, 1000, new Vec3(0, 0, 10), new Vec3(0, 0, 0), new Vec3(0, 1, 0));
         const cubeObject = new GameObject();
         cubeObject.mesh = this.createCubeMesh();
         this.scene.objects.push(cubeObject);
@@ -396,7 +396,7 @@ class WebGLRenderer {
             this.drawMesh(object.mesh, worldMatrix, viewMatrix, projMatrix);
         }
 
-        this.fps = 1 / ((Date.now() - this.lastFrameTime) / 1000);
+        this.fps = ((1 / ((Date.now() - this.lastFrameTime) / 1000)) + this.fps) / 2;
         this.lastFrameTime = Date.now();
         this.updateDebugInfo();
         
