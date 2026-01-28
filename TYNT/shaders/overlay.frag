@@ -35,7 +35,6 @@ void main() {
         vec4 lightClip = uProjection * vec4(lightPos, 1.0);
         float lightDepth = lightClip.z / lightClip.w * 0.5 + 0.5;
         
-        // Skip if occluded
         if (lightDepth > sceneDepth) continue;
         
         // Distance from fragment to light on screen
@@ -43,7 +42,7 @@ void main() {
         uvDiff.x *= uAspectRatio;
         float screenDist = length(uvDiff);
         
-        float radius = 1.0 / lightDist;
+        float radius = 0.3 / lightDist;
         
         if (screenDist < radius) {
             float brightness = (1.0 - screenDist / radius);

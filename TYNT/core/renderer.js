@@ -4,7 +4,6 @@ class WebGLRenderer {
     constructor() {
         this.canvas = document.getElementById('glCanvas');
         this.gl = this.canvas.getContext('webgl2', { antialias: false });
-        this.shaderProgram = null;
         this.scene = { objects: [], directionalLights: [], pointLights: [] };
         this.camera = null;
         this.startTime = Date.now();
@@ -13,145 +12,69 @@ class WebGLRenderer {
         this.FOV = 100;
         
         (async () => {
-            await this.initShaders();
-            this.setupScene();
-            this.resizeCanvas();
-            window.addEventListener('resize', () => this.resizeCanvas());
-            this.render();
+            await this.initialize();
         })();
     }
+
+    async initialize() {
+        await this.initShaders();
+        this.setupGL();
+        this.setupScene();
+        this.resizeCanvas();
+        window.addEventListener('resize', () => this.resizeCanvas());
+        this.render();
+    }
     
+    setupGL() {
+        this.gl.clearColor(0, 0, 0, 1.0);
+        this.gl.enable(this.gl.DEPTH_TEST);
+        this.gl.enable(this.gl.CULL_FACE);
+        this.gl.cullFace(this.gl.BACK);
+        this.gl.frontFace(this.gl.CCW);
+    }
+
+    async loadShaders() {
+        const shaders = {
+            vertex: await (await fetch('/TYNT/shaders/vertex.glsl')).text(),
+            fragment: await (await fetch('/TYNT/shaders/fragment.glsl')).text(),
+            overlayVertex: await (await fetch('/TYNT/shaders/overlay.vert')).text(),
+            overlayFragment: await (await fetch('/TYNT/shaders/overlay.frag')).text(),
+        };
+        return shaders;
+    }
+
     async initShaders() {
-        let vertexSource = await (await fetch('/TYNT/shaders/vertex.glsl')).text();
-        let fragmentSource = await (await fetch('/TYNT/shaders/fragment.glsl')).text();
-        let overlayVertexSource = await (await fetch('/TYNT/shaders/overlay.vert')).text();
-        let overlayFragmentSource = await (await fetch('/TYNT/shaders/overlay.frag')).text();
-        
-        // Inject MAX_LIGHTS define
+        const shaders = await this.loadShaders();
         const maxLightsDefine = `#define MAX_LIGHTS ${WebGLRenderer.MAX_LIGHTS}\n`;
-        vertexSource = maxLightsDefine + vertexSource;
-        fragmentSource = maxLightsDefine + fragmentSource;
         
         // Load textures
-        await this.loadTexture('/TYNT/textures/stone.png');
-        await this.loadNormalMap('/TYNT/textures/normalMaps/stone.png');
+        await this.loadTexture('/TYNT/textures/stone.png', 'texture');
+        await this.loadTexture('/TYNT/textures/normalMaps/stone.png', 'normalMap');
+
+        // Setup main shader program
+        this.shaderProgram = this.createProgram(maxLightsDefine + shaders.vertex, maxLightsDefine + shaders.fragment);
+        this.setupShaderUniforms(this.shaderProgram);
+        
+        // Setup overlay shader program
+        this.overlayShaderProgram = this.createProgram(shaders.overlayVertex, shaders.overlayFragment);
+        this.setupOverlayUniforms(this.overlayShaderProgram);
+    }
+
+    createProgram(vertexSource, fragmentSource) {
+        const program = this.gl.createProgram();
         const vertexShader = this.compileShader(vertexSource, this.gl.VERTEX_SHADER);
         const fragmentShader = this.compileShader(fragmentSource, this.gl.FRAGMENT_SHADER);
         
-        this.shaderProgram = this.gl.createProgram();
-        this.gl.attachShader(this.shaderProgram, vertexShader);
-        this.gl.attachShader(this.shaderProgram, fragmentShader);
-        this.gl.linkProgram(this.shaderProgram);
+        this.gl.attachShader(program, vertexShader);
+        this.gl.attachShader(program, fragmentShader);
+        this.gl.linkProgram(program);
         
-        if (!this.gl.getProgramParameter(this.shaderProgram, this.gl.LINK_STATUS)) {
-            console.error('Program link error:', this.gl.getProgramInfoLog(this.shaderProgram));
+        if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
+            console.error('Program link error:', this.gl.getProgramInfoLog(program));
         }
-        
-        this.shaderVariables = {
-            attribLocations: {
-                vertexPosition: this.gl.getAttribLocation(this.shaderProgram, 'aVertexPosition'),
-                normal: this.gl.getAttribLocation(this.shaderProgram, 'aNormal'),
-                texCoord: this.gl.getAttribLocation(this.shaderProgram, 'aTexCoord'),
-                tangent: this.gl.getAttribLocation(this.shaderProgram, 'aTangent'),
-            },
-            uniformLocations: {
-                uModel: this.gl.getUniformLocation(this.shaderProgram, 'uModel'),
-                uView: this.gl.getUniformLocation(this.shaderProgram, 'uView'),
-                uProjection: this.gl.getUniformLocation(this.shaderProgram, 'uProjection'),
-                uNormalMatrix: this.gl.getUniformLocation(this.shaderProgram, 'uNormalMatrix'),
-                uCameraPos: this.gl.getUniformLocation(this.shaderProgram, 'uCameraPos'),
-                uAmbientColor: this.gl.getUniformLocation(this.shaderProgram, 'uAmbientColor'),
-                uDirLight: {
-                    count: this.gl.getUniformLocation(this.shaderProgram, 'uDirLightCount'),
-                },
-                uPointLight: {
-                    count: this.gl.getUniformLocation(this.shaderProgram, 'uPointLightCount'),
-                },
-                uRoughness: this.gl.getUniformLocation(this.shaderProgram, 'uRoughness'),
-                uSpecularStrength: this.gl.getUniformLocation(this.shaderProgram, 'uSpecularStrength'),
-                uTexture: this.gl.getUniformLocation(this.shaderProgram, 'uTexture'),
-                uNormalMap: this.gl.getUniformLocation(this.shaderProgram, 'uNormalMap'),
-            }
-        };
-        // Setup array uniform locations for lights
-        this.shaderVariables.uniformLocations.uDirLight.directions = Array.from({ length: WebGLRenderer.MAX_LIGHTS }, (_, i) =>
-            this.gl.getUniformLocation(this.shaderProgram, `uDirLightDirections[${i}]`)
-        );
-        this.shaderVariables.uniformLocations.uDirLight.colors = Array.from({ length: WebGLRenderer.MAX_LIGHTS }, (_, i) =>
-            this.gl.getUniformLocation(this.shaderProgram, `uDirLightColors[${i}]`)
-        );
-        this.shaderVariables.uniformLocations.uPointLight.positions = Array.from({ length: WebGLRenderer.MAX_LIGHTS }, (_, i) =>
-            this.gl.getUniformLocation(this.shaderProgram, `uPointLightPositions[${i}]`)
-        );
-        this.shaderVariables.uniformLocations.uPointLight.colors = Array.from({ length: WebGLRenderer.MAX_LIGHTS }, (_, i) =>
-            this.gl.getUniformLocation(this.shaderProgram, `uPointLightColors[${i}]`)
-        );
-        this.shaderVariables.uniformLocations.uPointLight.ranges = Array.from({ length: WebGLRenderer.MAX_LIGHTS }, (_, i) =>
-            this.gl.getUniformLocation(this.shaderProgram, `uPointLightRanges[${i}]`)
-        );
-        
-        // Setup overlay shader
-        const overlayVertexShader = this.compileShader(overlayVertexSource, this.gl.VERTEX_SHADER);
-        const overlayFragmentShader = this.compileShader(overlayFragmentSource, this.gl.FRAGMENT_SHADER);
-        
-        this.overlayShaderProgram = this.gl.createProgram();
-        this.gl.attachShader(this.overlayShaderProgram, overlayVertexShader);
-        this.gl.attachShader(this.overlayShaderProgram, overlayFragmentShader);
-        this.gl.linkProgram(this.overlayShaderProgram);
-        
-        this.overlayShaderVars = {
-            attribLocations: {
-                vertexPosition: this.gl.getAttribLocation(this.overlayShaderProgram, 'aVertexPosition'),
-            },
-            uniformLocations: {
-                lights: this.gl.getUniformLocation(this.overlayShaderProgram, 'uLights'),
-                lightColors: this.gl.getUniformLocation(this.overlayShaderProgram, 'uLightColors'),
-                lightCount: this.gl.getUniformLocation(this.overlayShaderProgram, 'uLightCount'),
-                projection: this.gl.getUniformLocation(this.overlayShaderProgram, 'uProjection'),
-                aspectRatio: this.gl.getUniformLocation(this.overlayShaderProgram, 'uAspectRatio'),
-                depthTexture: this.gl.getUniformLocation(this.overlayShaderProgram, 'uDepthTexture')
-            }
-        };
+        return program;
     }
-    
-    async loadTexture(url) {
-        return new Promise((resolve, reject) => {
-            const image = new Image();
-            image.onload = () => {
-                this.texture = this.gl.createTexture();
-                this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
-                this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, image);
-                this.gl.generateMipmap(this.gl.TEXTURE_2D);
-                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT);
-                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT);
-                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR_MIPMAP_LINEAR);
-                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-                resolve(this.texture);
-            };
-            image.onerror = () => reject(new Error(`Failed to load texture: ${url}`));
-            image.src = url;
-        });
-    }
-    
-    async loadNormalMap(url) {
-        return new Promise((resolve, reject) => {
-            const image = new Image();
-            image.onload = () => {
-                this.normalMap = this.gl.createTexture();
-                this.gl.bindTexture(this.gl.TEXTURE_2D, this.normalMap);
-                this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, image);
-                this.gl.generateMipmap(this.gl.TEXTURE_2D);
-                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT);
-                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT);
-                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR_MIPMAP_LINEAR);
-                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-                resolve(this.normalMap);
-            };
-            image.onerror = () => reject(new Error(`Failed to load normal map: ${url}`));
-            image.src = url;
-        });
-    }
-    
+
     compileShader(source, type) {
         const shader = this.gl.createShader(type);
         this.gl.shaderSource(shader, source);
@@ -161,44 +84,126 @@ class WebGLRenderer {
         }
         return shader;
     }
+
+    setupShaderUniforms(program) {
+        this.shaderVariables = {
+            attribLocations: {
+                vertexPosition: this.gl.getAttribLocation(program, 'aVertexPosition'),
+                normal: this.gl.getAttribLocation(program, 'aNormal'),
+                texCoord: this.gl.getAttribLocation(program, 'aTexCoord'),
+                tangent: this.gl.getAttribLocation(program, 'aTangent'),
+            },
+            uniformLocations: {
+                uModel: this.gl.getUniformLocation(program, 'uModel'),
+                uView: this.gl.getUniformLocation(program, 'uView'),
+                uProjection: this.gl.getUniformLocation(program, 'uProjection'),
+                uNormalMatrix: this.gl.getUniformLocation(program, 'uNormalMatrix'),
+                uCameraPos: this.gl.getUniformLocation(program, 'uCameraPos'),
+                uAmbientColor: this.gl.getUniformLocation(program, 'uAmbientColor'),
+                uRoughness: this.gl.getUniformLocation(program, 'uRoughness'),
+                uSpecularStrength: this.gl.getUniformLocation(program, 'uSpecularStrength'),
+                uTexture: this.gl.getUniformLocation(program, 'uTexture'),
+                uNormalMap: this.gl.getUniformLocation(program, 'uNormalMap'),
+                uDirLight: { count: this.gl.getUniformLocation(program, 'uDirLightCount') },
+                uPointLight: { count: this.gl.getUniformLocation(program, 'uPointLightCount') }
+            }
+        };
+        
+        // Setup light array uniforms
+        this.shaderVariables.uniformLocations.uDirLight.directions = Array.from({ length: WebGLRenderer.MAX_LIGHTS }, (_, i) =>
+            this.gl.getUniformLocation(program, `uDirLightDirections[${i}]`)
+        );
+        this.shaderVariables.uniformLocations.uDirLight.colors = Array.from({ length: WebGLRenderer.MAX_LIGHTS }, (_, i) =>
+            this.gl.getUniformLocation(program, `uDirLightColors[${i}]`)
+        );
+        this.shaderVariables.uniformLocations.uPointLight.positions = Array.from({ length: WebGLRenderer.MAX_LIGHTS }, (_, i) =>
+            this.gl.getUniformLocation(program, `uPointLightPositions[${i}]`)
+        );
+        this.shaderVariables.uniformLocations.uPointLight.colors = Array.from({ length: WebGLRenderer.MAX_LIGHTS }, (_, i) =>
+            this.gl.getUniformLocation(program, `uPointLightColors[${i}]`)
+        );
+        this.shaderVariables.uniformLocations.uPointLight.ranges = Array.from({ length: WebGLRenderer.MAX_LIGHTS }, (_, i) =>
+            this.gl.getUniformLocation(program, `uPointLightRanges[${i}]`)
+        );
+    }
+
+    setupOverlayUniforms(program) {
+        this.overlayShaderVars = {
+            attribLocations: {
+                vertexPosition: this.gl.getAttribLocation(program, 'aVertexPosition'),
+            },
+            uniformLocations: {
+                lights: this.gl.getUniformLocation(program, 'uLights'),
+                lightColors: this.gl.getUniformLocation(program, 'uLightColors'),
+                lightCount: this.gl.getUniformLocation(program, 'uLightCount'),
+                projection: this.gl.getUniformLocation(program, 'uProjection'),
+                aspectRatio: this.gl.getUniformLocation(program, 'uAspectRatio'),
+                depthTexture: this.gl.getUniformLocation(program, 'uDepthTexture')
+            }
+        };
+    }
+
+    async loadTexture(url, name) {
+        return new Promise((resolve) => {
+            const image = new Image();
+            image.onload = () => {
+                const texture = this.gl.createTexture();
+                this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
+                this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, image);
+                this.gl.generateMipmap(this.gl.TEXTURE_2D);
+                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT);
+                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT);
+                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR_MIPMAP_LINEAR);
+                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+                this[name] = texture;
+                resolve(texture);
+            };
+            image.onerror = () => console.error(`Failed to load texture: ${url}`);
+            image.src = url;
+        });
+    }
     
     setupScene() {
-        this.camera = new Camera(this.FOV / 2, this.canvas.width / this.canvas.height, 0.1, 1000, new Vec3(0, 0, 10), new Vec3(0, 0, 0), new Vec3(0, 1, 0));
+        this.camera = new Camera(this.FOV / 2, this.canvas.width / this.canvas.height, 0.1, 1000, 
+            new Vec3(0, 0, 10), new Vec3(0, 0, 0), new Vec3(0, 1, 0));
+        
+        // Create default scene
         const cubeObject = new GameObject();
         cubeObject.mesh = this.createCubeMesh();
         this.scene.objects.push(cubeObject);
         this.scene.directionalLights.push(new DirectionalLight(new Vec3(0, -1, 0), new Vec3(1.0, 0.8, 0.6)));
         this.scene.pointLights.push(new PointLight(new Vec3(2, 0, 1), new Vec3(1, 0.1, 0.1), 50));
-        this.scene.pointLights.push(new PointLight(new Vec3(2, 0, 1), new Vec3(0., 0.8, 0.8), 50));
+        this.scene.pointLights.push(new PointLight(new Vec3(2, 0, 1), new Vec3(0.0, 0.8, 0.8), 50));
         
-        this.gl.clearColor(0, 0, 0, 1.0);
-        this.gl.enable(this.gl.DEPTH_TEST);
-        this.gl.enable(this.gl.CULL_FACE);
-        this.gl.cullFace(this.gl.BACK);
-        this.gl.frontFace(this.gl.CCW);
-        
-        // Create framebuffer for scene rendering
+        // Setup framebuffer
+        this.setupFramebuffer();
+    }
+
+    setupFramebuffer() {
         this.sceneFramebuffer = this.gl.createFramebuffer();
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.sceneFramebuffer);
         
-        // Create color texture
-        this.colorTexture = this.gl.createTexture();
-        this.gl.bindTexture(this.gl.TEXTURE_2D, this.colorTexture);
-        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.canvas.width, this.canvas.height, 0, this.gl.RGBA, this.gl.UNSIGNED_BYTE, null);
-        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+        // Color texture
+        this.colorTexture = this.createTexture2D(this.canvas.width, this.canvas.height, this.gl.RGBA, null);
         this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, this.colorTexture, 0);
         
-        // Create depth texture
-        this.depthTexture = this.gl.createTexture();
-        this.gl.bindTexture(this.gl.TEXTURE_2D, this.depthTexture);
-        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.DEPTH_COMPONENT24, this.canvas.width, this.canvas.height, 0, this.gl.DEPTH_COMPONENT, this.gl.UNSIGNED_INT, null);
-        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
-        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
+        // Depth texture
+        this.depthTexture = this.createTexture2D(this.canvas.width, this.canvas.height, this.gl.DEPTH_COMPONENT24, null, this.gl.DEPTH_COMPONENT);
         this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.DEPTH_ATTACHMENT, this.gl.TEXTURE_2D, this.depthTexture, 0);
         
-        // Bind back to default framebuffer
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+    }
+
+    createTexture2D(width, height, internalFormat, data, format = null, type = null) {
+        const texture = this.gl.createTexture();
+        this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
+        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, internalFormat, width, height, 0, format || internalFormat, type || this.gl.UNSIGNED_BYTE, data);
+        
+        const filter = internalFormat === this.gl.DEPTH_COMPONENT24 ? this.gl.NEAREST : this.gl.LINEAR;
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, filter);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, filter);
+        
+        return texture;
     }
     
     createCubeMesh() {
@@ -313,22 +318,19 @@ class WebGLRenderer {
         if (this.canvas.width !== displayWidth || this.canvas.height !== displayHeight) {
             this.canvas.width = displayWidth;
             this.canvas.height = displayHeight;
+            this.gl.viewport(0, 0, displayWidth, displayHeight);
             
-            if (this.gl) {
-                this.gl.viewport(0, 0, displayWidth, displayHeight);
-                if (this.camera) {
-                    this.camera.aspect = displayWidth / displayHeight;
-                }
-
-                if (this.colorTexture && this.depthTexture) {
-                    this.gl.bindTexture(this.gl.TEXTURE_2D, this.colorTexture);
-                    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, displayWidth, displayHeight, 0, this.gl.RGBA, this.gl.UNSIGNED_BYTE, null);
-                    
-                    this.gl.bindTexture(this.gl.TEXTURE_2D, this.depthTexture);
-                    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.DEPTH_COMPONENT24, displayWidth, displayHeight, 0, this.gl.DEPTH_COMPONENT, this.gl.UNSIGNED_INT, null);
-                }
-            }
+            if (this.camera) this.camera.aspect = displayWidth / displayHeight;
+            if (this.colorTexture && this.depthTexture) this.resizeFramebufferTextures(displayWidth, displayHeight);
         }
+    }
+
+    resizeFramebufferTextures(width, height) {
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.colorTexture);
+        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, width, height, 0, this.gl.RGBA, this.gl.UNSIGNED_BYTE, null);
+        
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.depthTexture);
+        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.DEPTH_COMPONENT24, width, height, 0, this.gl.DEPTH_COMPONENT, this.gl.UNSIGNED_INT, null);
     }
     
     computeNormalMatrix(modelMatrix) {
@@ -378,27 +380,30 @@ class WebGLRenderer {
         const activeDirLights = Math.min(this.scene.directionalLights.length, WebGLRenderer.MAX_LIGHTS);
         const activePointLights = Math.min(this.scene.pointLights.length, WebGLRenderer.MAX_LIGHTS);
         
+        // Set material properties
         this.gl.uniform3f(this.shaderVariables.uniformLocations.uCameraPos, this.camera.position.x, this.camera.position.y, this.camera.position.z);
         this.gl.uniform3f(this.shaderVariables.uniformLocations.uAmbientColor, 0.1, 0.1, 0.1);
         this.gl.uniform1f(this.shaderVariables.uniformLocations.uRoughness, 0.5);
         this.gl.uniform1f(this.shaderVariables.uniformLocations.uSpecularStrength, 1);
         
+        // Set directional lights
         for (let i = 0; i < activeDirLights; i++) {
             const light = this.scene.directionalLights[i];
             this.gl.uniform3f(this.shaderVariables.uniformLocations.uDirLight.directions[i], light.direction.x, light.direction.y, light.direction.z);
             this.gl.uniform3f(this.shaderVariables.uniformLocations.uDirLight.colors[i], light.color.x, light.color.y, light.color.z);
         }
+        this.gl.uniform1i(this.shaderVariables.uniformLocations.uDirLight.count, activeDirLights);
         
+        // Set point lights
         for (let i = 0; i < activePointLights; i++) {
             const light = this.scene.pointLights[i];
             this.gl.uniform3f(this.shaderVariables.uniformLocations.uPointLight.positions[i], light.position.x, light.position.y, light.position.z);
             this.gl.uniform3f(this.shaderVariables.uniformLocations.uPointLight.colors[i], light.color.x, light.color.y, light.color.z);
             this.gl.uniform1f(this.shaderVariables.uniformLocations.uPointLight.ranges[i], light.range);
         }
-        
-        this.gl.uniform1i(this.shaderVariables.uniformLocations.uDirLight.count, activeDirLights);
         this.gl.uniform1i(this.shaderVariables.uniformLocations.uPointLight.count, activePointLights);
         
+        // Bind textures
         if (this.texture) {
             this.gl.activeTexture(this.gl.TEXTURE0);
             this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
@@ -411,62 +416,61 @@ class WebGLRenderer {
             this.gl.uniform1i(this.shaderVariables.uniformLocations.uNormalMap, 1);
         }
         
+        // Render all objects
         for (let object of this.scene.objects) {
-            const worldMatrix = object.getWorldMatrix();
-            this.drawMesh(object.mesh, worldMatrix, viewMatrix, projMatrix);
+            this.drawMesh(object.mesh, object.getWorldMatrix(), viewMatrix, projMatrix);
         }
     }
-    
+
     update() {
-        // Update point light rotation
-        const elapsed = (Date.now() - this.startTime) / 1000; // Time in seconds
-        const radius = 3; // Distance from center
+        const elapsed = (Date.now() - this.startTime) / 1000;
+        const radius = 3;
         
+        // Rotate each point light in a circle
         for (let i = 0; i < this.scene.pointLights.length; i++) {
             const angle = elapsed + (i * (Math.PI * 2 / this.scene.pointLights.length));
-            const pointLight = this.scene.pointLights[i];
-            pointLight.position.x = Math.cos(angle) * radius;
-            pointLight.position.z = Math.sin(angle) * radius;
-            pointLight.position.y = 0; // Keep at constant height
+            const light = this.scene.pointLights[i];
+            light.position.x = Math.cos(angle) * radius;
+            light.position.z = Math.sin(angle) * radius;
+            light.position.y = 0;
         }
     }
     
     render() {
         this.update();
-        
         const viewMatrix = this.camera.getViewMatrix();
         const projMatrix = this.camera.getProjectionMatrix();
         
-        // Render scene to framebuffer
+        // Render scene to offscreen framebuffer
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.sceneFramebuffer);
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
         this.gl.useProgram(this.shaderProgram);
-        
         this.renderScene(viewMatrix, projMatrix);
         
-        // Blit framebuffer to screen
+        // Blit color buffer to screen
         this.gl.bindFramebuffer(this.gl.READ_FRAMEBUFFER, this.sceneFramebuffer);
         this.gl.bindFramebuffer(this.gl.DRAW_FRAMEBUFFER, null);
         this.gl.blitFramebuffer(0, 0, this.canvas.width, this.canvas.height, 0, 0, this.canvas.width, this.canvas.height, this.gl.COLOR_BUFFER_BIT, this.gl.NEAREST);
         
-        // Render overlay to screen
+        // Render light overlay to screen
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
         this.renderOverlay(viewMatrix, projMatrix);
-
+        
+        // Update debug info
         this.fps = ((1 / ((Date.now() - this.lastFrameTime) / 1000)) + this.fps) / 2;
         this.lastFrameTime = Date.now();
         this.updateDebugInfo();
         
         requestAnimationFrame(() => this.render());
     }
-    
+
     renderOverlay(viewMatrix, projMatrix) {
         this.gl.useProgram(this.overlayShaderProgram);
         this.gl.enable(this.gl.BLEND);
         this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE);
         
+        // Setup uniforms
         const aspectRatio = this.canvas.width / this.canvas.height;
-        
         this.gl.uniformMatrix4fv(this.overlayShaderVars.uniformLocations.projection, false, projMatrix);
         this.gl.uniform1f(this.overlayShaderVars.uniformLocations.aspectRatio, aspectRatio);
         
@@ -475,10 +479,28 @@ class WebGLRenderer {
         this.gl.bindTexture(this.gl.TEXTURE_2D, this.depthTexture);
         this.gl.uniform1i(this.overlayShaderVars.uniformLocations.depthTexture, 2);
         
-        const lightPositions = [];
-        const lightColors = [];
+        // Collect lights in view space
+        const lightData = this.collectLightsViewSpace(viewMatrix);
         
-        // Collect directional lights
+        if (lightData.positions.length > 0) {
+            this.gl.uniform3fv(this.overlayShaderVars.uniformLocations.lights, new Float32Array(lightData.positions));
+            this.gl.uniform3fv(this.overlayShaderVars.uniformLocations.lightColors, new Float32Array(lightData.colors));
+            this.gl.uniform1i(this.overlayShaderVars.uniformLocations.lightCount, lightData.positions.length / 3);
+        }
+        
+        // Draw fullscreen quad
+        this.drawFullscreenQuad();
+        
+        // Reset blend function
+        this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
+        this.gl.useProgram(this.shaderProgram);
+    }
+
+    collectLightsViewSpace(viewMatrix) {
+        const positions = [];
+        const colors = [];
+        
+        // Add directional lights
         for (let light of this.scene.directionalLights) {
             const dist = 100;
             const pos = new Vec3(
@@ -487,24 +509,21 @@ class WebGLRenderer {
                 this.camera.position.z - light.direction.z * dist
             );
             const camSpacePos = this.transformToViewSpace(pos, viewMatrix);
-            lightPositions.push(camSpacePos.x, camSpacePos.y, camSpacePos.z);
-            lightColors.push(light.color.x, light.color.y, light.color.z);
+            positions.push(camSpacePos.x, camSpacePos.y, camSpacePos.z);
+            colors.push(light.color.x, light.color.y, light.color.z);
         }
         
-        // Collect point lights
+        // Add point lights
         for (let light of this.scene.pointLights) {
             const camSpacePos = this.transformToViewSpace(light.position, viewMatrix);
-            lightPositions.push(camSpacePos.x, camSpacePos.y, camSpacePos.z);
-            lightColors.push(light.color.x, light.color.y, light.color.z);
+            positions.push(camSpacePos.x, camSpacePos.y, camSpacePos.z);
+            colors.push(light.color.x, light.color.y, light.color.z);
         }
         
-        if (lightPositions.length > 0) {
-            this.gl.uniform3fv(this.overlayShaderVars.uniformLocations.lights, new Float32Array(lightPositions));
-            this.gl.uniform3fv(this.overlayShaderVars.uniformLocations.lightColors, new Float32Array(lightColors));
-            this.gl.uniform1i(this.overlayShaderVars.uniformLocations.lightCount, lightPositions.length / 3);
-        }
-        
-        // Draw fullscreen quad
+        return { positions, colors };
+    }
+
+    drawFullscreenQuad() {
         const quadVertices = new Float32Array([-1, -1, 1, -1, 1, 1, -1, 1]);
         const quadBuffer = this.gl.createBuffer();
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, quadBuffer);
@@ -512,48 +531,38 @@ class WebGLRenderer {
         
         this.gl.vertexAttribPointer(this.overlayShaderVars.attribLocations.vertexPosition, 2, this.gl.FLOAT, false, 0, 0);
         this.gl.enableVertexAttribArray(this.overlayShaderVars.attribLocations.vertexPosition);
-        
         this.gl.drawArrays(this.gl.TRIANGLE_FAN, 0, 4);
-        
-        this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
-        this.gl.useProgram(this.shaderProgram);
-    }
-    
-    transformToViewSpace(position, viewMatrix) {
-        const x = position.x, y = position.y, z = position.z;
-        const result = new Vec3(
-            viewMatrix[0] * x + viewMatrix[4] * y + viewMatrix[8] * z + viewMatrix[12],
-            viewMatrix[1] * x + viewMatrix[5] * y + viewMatrix[9] * z + viewMatrix[13],
-            viewMatrix[2] * x + viewMatrix[6] * y + viewMatrix[10] * z + viewMatrix[14]
-        );
-        return result;
     }
     
     drawMesh(mesh, worldMatrix, viewMatrix, projMatrix) {
+        // Bind position
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, mesh.positionBuffer);
         this.gl.vertexAttribPointer(this.shaderVariables.attribLocations.vertexPosition, 3, this.gl.FLOAT, false, 0, 0);
         this.gl.enableVertexAttribArray(this.shaderVariables.attribLocations.vertexPosition);
         
+        // Bind normals
         if (mesh.normalBuffer) {
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, mesh.normalBuffer);
             this.gl.vertexAttribPointer(this.shaderVariables.attribLocations.normal, 3, this.gl.FLOAT, false, 0, 0);
             this.gl.enableVertexAttribArray(this.shaderVariables.attribLocations.normal);
         }
         
+        // Bind texture coordinates
         if (mesh.texCoordBuffer && this.shaderVariables.attribLocations.texCoord !== -1) {
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, mesh.texCoordBuffer);
             this.gl.vertexAttribPointer(this.shaderVariables.attribLocations.texCoord, 2, this.gl.FLOAT, false, 0, 0);
             this.gl.enableVertexAttribArray(this.shaderVariables.attribLocations.texCoord);
         }
         
+        // Bind tangents
         if (mesh.tangentBuffer && this.shaderVariables.attribLocations.tangent !== -1) {
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, mesh.tangentBuffer);
             this.gl.vertexAttribPointer(this.shaderVariables.attribLocations.tangent, 3, this.gl.FLOAT, false, 0, 0);
             this.gl.enableVertexAttribArray(this.shaderVariables.attribLocations.tangent);
         }
         
+        // Bind and draw indices
         this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
-        
         this.gl.uniformMatrix4fv(this.shaderVariables.uniformLocations.uModel, false, worldMatrix);
         this.gl.uniformMatrix4fv(this.shaderVariables.uniformLocations.uView, false, viewMatrix);
         this.gl.uniformMatrix4fv(this.shaderVariables.uniformLocations.uProjection, false, projMatrix);
@@ -562,6 +571,15 @@ class WebGLRenderer {
         this.gl.uniformMatrix3fv(this.shaderVariables.uniformLocations.uNormalMatrix, false, normalMatrix);
         
         this.gl.drawElements(this.gl.TRIANGLES, mesh.vertexCount, this.gl.UNSIGNED_SHORT, 0);
+    }
+
+    transformToViewSpace(position, viewMatrix) {
+        const x = position.x, y = position.y, z = position.z;
+        return new Vec3(
+            viewMatrix[0] * x + viewMatrix[4] * y + viewMatrix[8] * z + viewMatrix[12],
+            viewMatrix[1] * x + viewMatrix[5] * y + viewMatrix[9] * z + viewMatrix[13],
+            viewMatrix[2] * x + viewMatrix[6] * y + viewMatrix[10] * z + viewMatrix[14]
+        );
     }
     
     updateDebugInfo() {
