@@ -36,5 +36,25 @@
     <div id="debugInfo"></div>
     <script src="core/math.js"></script>
     <script src="core/renderer.js"></script>
+    <script type="module">
+        import { Player } from './player.js';
+        
+        // Wait for renderer to initialize
+        window.addEventListener('load', () => {
+            // Give renderer time to create the camera
+            setTimeout(() => {
+                if (window.renderer && window.renderer.camera) {
+                    const player = new Player(document.getElementById('glCanvas'), window.renderer.camera);
+                    
+                    // Update player in the render loop
+                    const originalRender = window.renderer.render.bind(window.renderer);
+                    window.renderer.render = function() {
+                        player.update();
+                        originalRender();
+                    };
+                }
+            }, 100);
+        });
+    </script>
 </body>
 </html>
