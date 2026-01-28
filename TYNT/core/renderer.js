@@ -43,17 +43,56 @@ class WebGLRenderer {
         return shaders;
     }
 
+    getSkyboxShaders() {
+        const skyboxVertex = `#version 300 es
+            in vec3 aVertexPosition;
+            uniform mat4 uView;
+            uniform mat4 uProjection;
+            out vec3 vTexCoords;
+            void main() {
+                vec4 pos = uProjection * mat4(mat3(uView)) * vec4(aVertexPosition, 1.0);
+                gl_Position = pos.xyww;
+                vTexCoords = aVertexPosition;
+            }`;
+        
+        const skyboxFragment = `#version 300 es
+            precision mediump float;
+            in vec3 vTexCoords;
+            uniform samplerCube uSkybox;
+            out vec4 outColor;
+            void main() {
+                outColor = texture(uSkybox, vTexCoords);
+            }`;
+        
+        return { vertex: skyboxVertex, fragment: skyboxFragment };
+    }
+
     async initShaders() {
         const shaders = await this.loadShaders();
+        const skyboxShaders = this.getSkyboxShaders();
         const maxLightsDefine = `#define MAX_LIGHTS ${WebGLRenderer.MAX_LIGHTS}\n`;
         
         // Load textures
         await this.loadTexture('/TYNT/textures/stone.png', 'texture');
         await this.loadTexture('/TYNT/textures/normalMaps/stone.png', 'normalMap');
+        await this.loadSkybox();
 
         // Setup main shader program
         this.shaderProgram = this.createProgram(maxLightsDefine + shaders.vertex, maxLightsDefine + shaders.fragment);
         this.setupShaderUniforms(this.shaderProgram);
+        
+        // Setup skybox shader program
+        this.skyboxShaderProgram = this.createProgram(skyboxShaders.vertex, skyboxShaders.fragment);
+        this.skyboxShaderVars = {
+            attribLocations: {
+                vertexPosition: this.gl.getAttribLocation(this.skyboxShaderProgram, 'aVertexPosition'),
+            },
+            uniformLocations: {
+                uView: this.gl.getUniformLocation(this.skyboxShaderProgram, 'uView'),
+                uProjection: this.gl.getUniformLocation(this.skyboxShaderProgram, 'uProjection'),
+                uSkybox: this.gl.getUniformLocation(this.skyboxShaderProgram, 'uSkybox')
+            }
+        };
         
         // Setup overlay shader program
         this.overlayShaderProgram = this.createProgram(shaders.overlayVertex, shaders.overlayFragment);
@@ -162,6 +201,36 @@ class WebGLRenderer {
             image.src = url;
         });
     }
+
+    async loadSkybox() {
+        const faces = ['front', 'back', 'left', 'right', 'top', 'bottom'];
+        const cubeMapFaces = [
+            this.gl.TEXTURE_CUBE_MAP_POSITIVE_Z, // front
+            this.gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, // back
+            this.gl.TEXTURE_CUBE_MAP_NEGATIVE_X, // left
+            this.gl.TEXTURE_CUBE_MAP_POSITIVE_X, // right
+            this.gl.TEXTURE_CUBE_MAP_POSITIVE_Y, // top
+            this.gl.TEXTURE_CUBE_MAP_NEGATIVE_Y  // bottom
+        ];
+
+        this.skyboxTexture = this.gl.createTexture();
+        this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, this.skyboxTexture);
+
+        for (let i = 0; i < faces.length; i++) {
+            const image = new Image();
+            image.onload = () => {
+                this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, this.skyboxTexture);
+                this.gl.texImage2D(cubeMapFaces[i], 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, image);
+            };
+            image.src = `/TYNT/textures/skybox/${faces[i]}.png`;
+        }
+
+        this.gl.texParameteri(this.gl.TEXTURE_CUBE_MAP, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+        this.gl.texParameteri(this.gl.TEXTURE_CUBE_MAP, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+        this.gl.texParameteri(this.gl.TEXTURE_CUBE_MAP, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+        this.gl.texParameteri(this.gl.TEXTURE_CUBE_MAP, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+        this.gl.texParameteri(this.gl.TEXTURE_CUBE_MAP, this.gl.TEXTURE_WRAP_R, this.gl.CLAMP_TO_EDGE);
+    }
     
     setupScene() {
         this.camera = new Camera(this.FOV / 2, this.canvas.width / this.canvas.height, 0.1, 1000, 
@@ -171,12 +240,15 @@ class WebGLRenderer {
         const cubeObject = new GameObject();
         cubeObject.mesh = this.createCubeMesh();
         this.scene.objects.push(cubeObject);
-        this.scene.directionalLights.push(new DirectionalLight(new Vec3(0, -1, 0), new Vec3(1.0, 0.8, 0.6)));
+        this.scene.directionalLights.push(new DirectionalLight(new Vec3(-1, -0.45, -0.24), new Vec3(1.0, 0.9, 0.8).scale(3.0)));
         this.scene.pointLights.push(new PointLight(new Vec3(2, 0, 1), new Vec3(1, 0.1, 0.1), 50));
         this.scene.pointLights.push(new PointLight(new Vec3(2, 0, 1), new Vec3(0.0, 0.8, 0.8), 50));
         
         // Setup framebuffer
         this.setupFramebuffer();
+        
+        // Setup skybox
+        this.setupSkyboxMesh();
     }
 
     setupFramebuffer() {
@@ -204,6 +276,14 @@ class WebGLRenderer {
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, filter);
         
         return texture;
+    }
+
+    setupSkyboxMesh() {
+        const vertices = [-1, -1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1, -1, -1, 1, 1, -1, 1, 1, 1, 1, -1, 1, 1];
+        const indices = [0,1,2,2,3,0,5,4,7,7,6,5,4,0,3,3,7,4,1,5,6,6,2,1,3,2,6,6,7,3,4,5,1,1,0,4];
+        
+        this.skyboxMesh = new Mesh(vertices, indices);
+        this.setupMeshBuffers(this.skyboxMesh, vertices, indices, null, null, null);
     }
     
     createCubeMesh() {
@@ -382,9 +462,9 @@ class WebGLRenderer {
         
         // Set material properties
         this.gl.uniform3f(this.shaderVariables.uniformLocations.uCameraPos, this.camera.position.x, this.camera.position.y, this.camera.position.z);
-        this.gl.uniform3f(this.shaderVariables.uniformLocations.uAmbientColor, 0.1, 0.1, 0.1);
+        this.gl.uniform3f(this.shaderVariables.uniformLocations.uAmbientColor, 0.35, 0.33, 0.3);
         this.gl.uniform1f(this.shaderVariables.uniformLocations.uRoughness, 0.5);
-        this.gl.uniform1f(this.shaderVariables.uniformLocations.uSpecularStrength, 1);
+        this.gl.uniform1f(this.shaderVariables.uniformLocations.uSpecularStrength, 0.3);
         
         // Set directional lights
         for (let i = 0; i < activeDirLights; i++) {
@@ -444,6 +524,16 @@ class WebGLRenderer {
         // Render scene to offscreen framebuffer
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.sceneFramebuffer);
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+        
+        // Render skybox first (with depth equal to far plane)
+        this.gl.useProgram(this.skyboxShaderProgram);
+        this.gl.disable(this.gl.DEPTH_TEST);
+        this.gl.disable(this.gl.CULL_FACE);
+        this.drawSkybox(viewMatrix, projMatrix);
+        this.gl.enable(this.gl.DEPTH_TEST);
+        this.gl.enable(this.gl.CULL_FACE);
+        
+        // Render scene objects
         this.gl.useProgram(this.shaderProgram);
         this.renderScene(viewMatrix, projMatrix);
         
@@ -462,6 +552,22 @@ class WebGLRenderer {
         this.updateDebugInfo();
         
         requestAnimationFrame(() => this.render());
+    }
+
+    drawSkybox(viewMatrix, projMatrix) {
+        this.gl.uniformMatrix4fv(this.skyboxShaderVars.uniformLocations.uView, false, viewMatrix);
+        this.gl.uniformMatrix4fv(this.skyboxShaderVars.uniformLocations.uProjection, false, projMatrix);
+        
+        this.gl.activeTexture(this.gl.TEXTURE0);
+        this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, this.skyboxTexture);
+        this.gl.uniform1i(this.skyboxShaderVars.uniformLocations.uSkybox, 0);
+        
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.skyboxMesh.positionBuffer);
+        this.gl.vertexAttribPointer(this.skyboxShaderVars.attribLocations.vertexPosition, 3, this.gl.FLOAT, false, 0, 0);
+        this.gl.enableVertexAttribArray(this.skyboxShaderVars.attribLocations.vertexPosition);
+        
+        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.skyboxMesh.indexBuffer);
+        this.gl.drawElements(this.gl.TRIANGLES, this.skyboxMesh.vertexCount, this.gl.UNSIGNED_SHORT, 0);
     }
 
     renderOverlay(viewMatrix, projMatrix) {
