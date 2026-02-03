@@ -19,7 +19,7 @@ class WebGLRenderer {
     async initialize() {
         await this.initShaders();
         this.setupGL();
-        this.setupScene();
+        await this.setupScene();
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
         this.render();
@@ -72,9 +72,7 @@ class WebGLRenderer {
         const skyboxShaders = this.getSkyboxShaders();
         const maxLightsDefine = `#define MAX_LIGHTS ${WebGLRenderer.MAX_LIGHTS}\n`;
         
-        // Load textures
-        await this.loadTexture('/TYNT/textures/stone.png', 'texture');
-        await this.loadTexture('/TYNT/textures/normalMaps/stone.png', 'normalMap');
+        // Load skybox
         await this.loadSkybox();
 
         // Setup main shader program
@@ -232,14 +230,70 @@ class WebGLRenderer {
         this.gl.texParameteri(this.gl.TEXTURE_CUBE_MAP, this.gl.TEXTURE_WRAP_R, this.gl.CLAMP_TO_EDGE);
     }
     
-    setupScene() {
+    async setupScene() {
         this.camera = new Camera(this.FOV / 2, this.canvas.width / this.canvas.height, 0.1, 1000, 
             new Vec3(0, 0, 10), new Vec3(0, 0, 0), new Vec3(0, 1, 0));
         
-        // Create default scene
-        const cubeObject = new GameObject();
-        cubeObject.mesh = this.createCubeMesh();
-        this.scene.objects.push(cubeObject);
+        // Load GLTF model
+        const loader = new GLTFLoader(this.gl);
+        const meshDataArray = await loader.load('/TYNT/models/racecar.gltf');
+        
+        if (meshDataArray && meshDataArray.length > 0) {
+            // Create a GameObject for each mesh
+            for (let meshData of meshDataArray) {
+                const modelObject = new GameObject();
+                const mesh = new Mesh(meshData.positions, meshData.indices, meshData.normals);
+                this.setupMeshBuffers(mesh, 
+                    Array.from(meshData.positions), 
+                    Array.from(meshData.indices), 
+                    meshData.normals ? Array.from(meshData.normals) : null, 
+                    meshData.texCoords ? Array.from(meshData.texCoords) : null,
+                    null
+                );
+                modelObject.mesh = mesh;
+                
+                // Store the element name if available
+                if (meshData.name) {
+                    modelObject.name = meshData.name;
+                }
+                
+                // Apply the node's transform matrix to the model
+                if (meshData.transform) {
+                    modelObject.transformMatrix = meshData.transform;
+                }
+                
+                // Load and create GL textures from GLTF model
+                if (meshData.textures && meshData.textures.length > 0) {
+                    const textureData = meshData.textures[0];
+                    if (textureData.url) {
+                        const textureImage = new Image();
+                        textureImage.onload = () => {
+                            try {
+                                const texture = this.gl.createTexture();
+                                this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
+                                this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGB, this.gl.RGB, this.gl.UNSIGNED_BYTE, textureImage);
+                                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT);
+                                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT);
+                                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
+                                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
+                                modelObject.texture = texture;
+                            } catch (e) {
+                                console.error('Failed to load texture:', e);
+                            }
+                        };
+                        textureImage.onerror = () => {
+                            console.error('Failed to load image:', textureData.url);
+                        };
+                        textureImage.src = textureData.url;
+                    }
+                }
+                
+                this.scene.objects.push(modelObject);
+            }
+        } else {
+            console.error('Failed to load GLTF model');
+        }
+        
         this.scene.directionalLights.push(new DirectionalLight(new Vec3(-1, -0.45, -0.24), new Vec3(1.0, 0.9, 0.8).scale(3.0)));
         this.scene.pointLights.push(new PointLight(new Vec3(2, 0, 1), new Vec3(1, 0.1, 0.1), 50));
         this.scene.pointLights.push(new PointLight(new Vec3(2, 0, 1), new Vec3(0.0, 0.8, 0.8), 50));
@@ -462,9 +516,9 @@ class WebGLRenderer {
         
         // Set material properties
         this.gl.uniform3f(this.shaderVariables.uniformLocations.uCameraPos, this.camera.position.x, this.camera.position.y, this.camera.position.z);
-        this.gl.uniform3f(this.shaderVariables.uniformLocations.uAmbientColor, 0.35, 0.33, 0.3);
+        this.gl.uniform3f(this.shaderVariables.uniformLocations.uAmbientColor, 0.2, 0.2, 0.2);
         this.gl.uniform1f(this.shaderVariables.uniformLocations.uRoughness, 0.5);
-        this.gl.uniform1f(this.shaderVariables.uniformLocations.uSpecularStrength, 0.3);
+        this.gl.uniform1f(this.shaderVariables.uniformLocations.uSpecularStrength, 2.0);
         
         // Set directional lights
         for (let i = 0; i < activeDirLights; i++) {
@@ -483,28 +537,61 @@ class WebGLRenderer {
         }
         this.gl.uniform1i(this.shaderVariables.uniformLocations.uPointLight.count, activePointLights);
         
-        // Bind textures
-        if (this.texture) {
-            this.gl.activeTexture(this.gl.TEXTURE0);
-            this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
-            this.gl.uniform1i(this.shaderVariables.uniformLocations.uTexture, 0);
-        }
-        
-        if (this.normalMap) {
-            this.gl.activeTexture(this.gl.TEXTURE1);
-            this.gl.bindTexture(this.gl.TEXTURE_2D, this.normalMap);
-            this.gl.uniform1i(this.shaderVariables.uniformLocations.uNormalMap, 1);
-        }
+        // Don't bind any default textures - let objects bind their own
+        // This prevents feedback loops with framebuffer attachments
         
         // Render all objects
         for (let object of this.scene.objects) {
-            this.drawMesh(object.mesh, object.getWorldMatrix(), viewMatrix, projMatrix);
+            // Use animated transform if available (for wheels), otherwise use stored transform or world matrix
+            const worldMatrix = object.animatedTransform || object.transformMatrix || object.getWorldMatrix();
+            this.drawMesh(object, object.mesh, worldMatrix, viewMatrix, projMatrix);
         }
     }
 
     update() {
         const elapsed = (Date.now() - this.startTime) / 1000;
         const radius = 3;
+        
+        // Animate wheels - rotate objects with "wheel" in their name
+        for (let object of this.scene.objects) {
+            if (object.name && object.name.toLowerCase().includes('wheel')) {
+                // Rotate wheel around its local Y axis
+                const wheelSpeed = 4; // radians per second
+                let rotation = elapsed * wheelSpeed;
+                
+                // Reverse rotation direction for left wheels
+                if (object.name.toLowerCase().includes('left')) {
+                    rotation = -rotation;
+                }
+                
+                // Create rotation matrix around Y axis
+                const cos = Math.cos(rotation);
+                const sin = Math.sin(rotation);
+                
+                const rotationMatrix = new Float32Array([
+                    cos, 0, sin, 0,
+                    0, 1, 0, 0,
+                    -sin, 0, cos, 0,
+                    0, 0, 0, 1
+                ]);
+                
+                // Extract translation from the original transform (last column)
+                const originalTransform = object.transformMatrix;
+                const translationX = originalTransform[12];
+                const translationY = originalTransform[13];
+                const translationZ = originalTransform[14];
+                
+                // Apply rotation in local space, then translate to world position
+                const rotatedTransform = this.multiplyMatrices(rotationMatrix, originalTransform);
+                
+                // Restore the original position (in case scale was lost)
+                rotatedTransform[12] = translationX;
+                rotatedTransform[13] = translationY;
+                rotatedTransform[14] = translationZ;
+                
+                object.animatedTransform = rotatedTransform;
+            }
+        }
         
         // Rotate each point light in a circle
         for (let i = 0; i < this.scene.pointLights.length; i++) {
@@ -640,7 +727,27 @@ class WebGLRenderer {
         this.gl.drawArrays(this.gl.TRIANGLE_FAN, 0, 4);
     }
     
-    drawMesh(mesh, worldMatrix, viewMatrix, projMatrix) {
+    drawMesh(object, mesh, worldMatrix, viewMatrix, projMatrix) {
+        // Always bind a texture to TEXTURE0 to prevent feedback loops
+        // If object has a texture, use it; otherwise ensure we're not binding the framebuffer attachment
+        this.gl.activeTexture(this.gl.TEXTURE0);
+        if (object.texture) {
+            this.gl.bindTexture(this.gl.TEXTURE_2D, object.texture);
+        } else {
+            // Bind a dummy white texture if no texture available
+            if (!this.whiteTexture) {
+                this.whiteTexture = this.gl.createTexture();
+                this.gl.bindTexture(this.gl.TEXTURE_2D, this.whiteTexture);
+                const whitePixel = new Uint8Array([255, 255, 255]);
+                this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGB, 1, 1, 0, this.gl.RGB, this.gl.UNSIGNED_BYTE, whitePixel);
+                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
+                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
+            } else {
+                this.gl.bindTexture(this.gl.TEXTURE_2D, this.whiteTexture);
+            }
+        }
+        this.gl.uniform1i(this.shaderVariables.uniformLocations.uTexture, 0);
+        
         // Bind position
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, mesh.positionBuffer);
         this.gl.vertexAttribPointer(this.shaderVariables.attribLocations.vertexPosition, 3, this.gl.FLOAT, false, 0, 0);
@@ -701,6 +808,22 @@ class WebGLRenderer {
             ].join('\n');
             debugBox.textContent = info;
         }
+    }
+
+    multiplyMatrices(a, b) {
+        const result = new Float32Array(16);
+        
+        for (let i = 0; i < 4; i++) {
+            for (let j = 0; j < 4; j++) {
+                let sum = 0;
+                for (let k = 0; k < 4; k++) {
+                    sum += a[i * 4 + k] * b[k * 4 + j];
+                }
+                result[i * 4 + j] = sum;
+            }
+        }
+        
+        return result;
     }
 }
 

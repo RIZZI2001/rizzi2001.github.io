@@ -3,7 +3,6 @@ precision mediump float;
 varying vec3 vNormal;
 varying vec3 vFragPos;
 varying vec2 vTexCoord;
-varying mat3 vTBN;
 
 uniform vec3 uAmbientColor;
 
@@ -20,15 +19,10 @@ uniform float uRoughness;
 uniform vec3 uCameraPos;
 uniform float uSpecularStrength;
 uniform sampler2D uTexture;
-uniform sampler2D uNormalMap;
 
 void main() {
-    // Sample normal map and convert from [0,1] to [-1,1]
-    vec3 normalMapSample = texture2D(uNormalMap, vTexCoord).rgb;
-    vec3 normalMapNormal = normalize(normalMapSample * 2.0 - 1.0);
-    
-    // Transform normal map to world space using TBN matrix
-    vec3 norm = normalize(vTBN * normalMapNormal);
+    // Use vertex normal directly (no normal map required)
+    vec3 norm = normalize(vNormal);
     vec3 viewDir = normalize(uCameraPos - vFragPos);
     vec3 ambient = uAmbientColor;
     vec3 diffuse = vec3(0.0);
@@ -39,10 +33,9 @@ void main() {
         if(i >= uDirLightCount) break;
         vec3 lightDir = normalize(uDirLightDirections[i]);
         float diff = max(dot(norm, -lightDir), 0.0);
-        diff = mix(0.0, diff, uRoughness);
         diffuse += diff * uDirLightColors[i];
         
-        // Specular lighting
+        // Specular lighting (rougher surfaces have less specular)
         vec3 reflectDir = reflect(lightDir, norm);
         float shininess = mix(256.0, 4.0, uRoughness);
         float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
@@ -58,8 +51,7 @@ void main() {
         lightDir = lightDir / dist;
         float attenuation = 1.0 / (1.0 + dist * dist / (uPointLightRanges[i] * uPointLightRanges[i]));
         float diff = max(dot(norm, lightDir), 0.0);
-        diff = mix(0.0, diff, uRoughness) * attenuation;
-        diffuse += diff * uPointLightColors[i];
+        diffuse += diff * uPointLightColors[i] * attenuation;
         
         // Specular lighting
         vec3 reflectDir = reflect(-lightDir, norm);

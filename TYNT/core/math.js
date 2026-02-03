@@ -173,9 +173,19 @@ class GameObject {
         this.rotation = new Vec3(0, 0, 0);
         this.scale = new Vec3(1, 1, 1);
         this.mesh = null;
+        this.worldMatrixOverride = null; // For GLTF node matrices
+    }
+    
+    setWorldMatrix(matrix) {
+        this.worldMatrixOverride = matrix;
     }
     
     getWorldMatrix() {
+        // If world matrix is overridden (from GLTF), use that
+        if (this.worldMatrixOverride) {
+            return this.worldMatrixOverride;
+        }
+        
         // Proper matrix composition: Translate * RotateZ * RotateY * RotateX * Scale
         let matrix = Mat4.scale(this.scale.x, this.scale.y, this.scale.z);
         matrix = Mat4.rotateX(this.rotation.x).multiply(matrix);
