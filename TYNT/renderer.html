@@ -40,22 +40,44 @@
     <script type="module">
         import { Player } from './player.js';
         
-        // Wait for renderer to initialize
-        window.addEventListener('load', () => {
-            // Give renderer time to create the camera
-            setTimeout(() => {
+        // Robust initialization that waits for dependencies
+        async function initializePlayer() {
+            let attempts = 0;
+            const maxAttempts = 50; // 5 seconds max
+            
+            while (attempts < maxAttempts) {
                 if (window.renderer && window.renderer.camera) {
-                    const player = new Player(document.getElementById('glCanvas'), window.renderer.camera);
-                    
-                    // Update player in the render loop
-                    const originalRender = window.renderer.render.bind(window.renderer);
-                    window.renderer.render = function() {
-                        player.update();
-                        originalRender();
-                    };
+                    console.log('Initializing Player...');
+                    try {
+                        const player = new Player(document.getElementById('glCanvas'), window.renderer.camera);
+                        
+                        // Update player in the render loop
+                        const originalRender = window.renderer.render.bind(window.renderer);
+                        window.renderer.render = function() {
+                            player.update();
+                            originalRender();
+                        };
+                        console.log('Player initialized successfully');
+                        return;
+                    } catch (error) {
+                        console.error('Error initializing Player:', error);
+                        return;
+                    }
                 }
-            }, 100);
-        });
+                
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+            
+            console.error('Failed to initialize Player: renderer not ready after 5 seconds');
+        }
+        
+        // Start initialization
+        if (document.readyState === 'loading') {
+            window.addEventListener('load', initializePlayer);
+        } else {
+            initializePlayer();
+        }
     </script>
 </body>
 </html>
