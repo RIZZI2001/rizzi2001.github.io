@@ -9,7 +9,11 @@ class WebGLRenderer {
         this.startTime = Date.now();
         this.lastFrameTime = this.startTime;
         this.fps = 60;
-        this.FOV = 100;
+        this.FOV = 1; // Field of view in radians
+        
+        // Skybox parameters
+        this.skyboxTilt = 2.3;
+        this.skyboxMoonSize = 45.0;
         
         (async () => {
             await this.initialize();
@@ -35,62 +39,54 @@ class WebGLRenderer {
 
     async loadShaders() {
         const shaders = {
-            vertex: await (await fetch('/TYNT/shaders/vertex.glsl')).text(),
-            fragment: await (await fetch('/TYNT/shaders/fragment.glsl')).text(),
+            vertex: await (await fetch('/TYNT/shaders/main.vert')).text(),
+            fragment: await (await fetch('/TYNT/shaders/main.frag')).text(),
             overlayVertex: await (await fetch('/TYNT/shaders/overlay.vert')).text(),
             overlayFragment: await (await fetch('/TYNT/shaders/overlay.frag')).text(),
+            dynamicSkybox: await (await fetch('/TYNT/shaders/dynamic_skybox.frag')).text(),
         };
         return shaders;
     }
 
     getSkyboxShaders() {
-        const skyboxVertex = `#version 300 es
-            in vec3 aVertexPosition;
-            uniform mat4 uView;
-            uniform mat4 uProjection;
-            out vec3 vTexCoords;
+        const skyboxVertex = `#version 100
+            attribute vec3 aVertexPosition;
             void main() {
-                vec4 pos = uProjection * mat4(mat3(uView)) * vec4(aVertexPosition, 1.0);
-                gl_Position = pos.xyww;
-                vTexCoords = aVertexPosition;
+                gl_Position = vec4(aVertexPosition.xy, 1.0, 1.0);
             }`;
         
-        const skyboxFragment = `#version 300 es
-            precision mediump float;
-            in vec3 vTexCoords;
-            uniform samplerCube uSkybox;
-            out vec4 outColor;
-            void main() {
-                outColor = texture(uSkybox, vTexCoords);
-            }`;
-        
-        return { vertex: skyboxVertex, fragment: skyboxFragment };
+        return { vertex: skyboxVertex };
     }
 
     async initShaders() {
         const shaders = await this.loadShaders();
         const skyboxShaders = this.getSkyboxShaders();
         const maxLightsDefine = `#define MAX_LIGHTS ${WebGLRenderer.MAX_LIGHTS}\n`;
-        
-        // Load skybox
-        await this.loadSkybox();
 
         // Setup main shader program
         this.shaderProgram = this.createProgram(maxLightsDefine + shaders.vertex, maxLightsDefine + shaders.fragment);
         this.setupShaderUniforms(this.shaderProgram);
         
-        // Setup skybox shader program
-        this.skyboxShaderProgram = this.createProgram(skyboxShaders.vertex, skyboxShaders.fragment);
+        // Setup dynamic skybox shader program
+        this.skyboxShaderProgram = this.createProgram(skyboxShaders.vertex, shaders.dynamicSkybox);
         this.skyboxShaderVars = {
             attribLocations: {
                 vertexPosition: this.gl.getAttribLocation(this.skyboxShaderProgram, 'aVertexPosition'),
             },
             uniformLocations: {
-                uView: this.gl.getUniformLocation(this.skyboxShaderProgram, 'uView'),
-                uProjection: this.gl.getUniformLocation(this.skyboxShaderProgram, 'uProjection'),
-                uSkybox: this.gl.getUniformLocation(this.skyboxShaderProgram, 'uSkybox')
+                resolution: this.gl.getUniformLocation(this.skyboxShaderProgram, 'resolution'),
+                uFOV: this.gl.getUniformLocation(this.skyboxShaderProgram, 'uFOV'),
+                uDaytime: this.gl.getUniformLocation(this.skyboxShaderProgram, 'uDaytime'),
+                uViewDir: this.gl.getUniformLocation(this.skyboxShaderProgram, 'uViewDir'),
+                uMoonSize: this.gl.getUniformLocation(this.skyboxShaderProgram, 'uMoonSize'),
+                uTilt: this.gl.getUniformLocation(this.skyboxShaderProgram, 'uTilt')
             }
         };
+        
+        // Set static skybox uniforms once
+        this.gl.useProgram(this.skyboxShaderProgram);
+        this.gl.uniform1f(this.skyboxShaderVars.uniformLocations.uMoonSize, this.skyboxMoonSize);
+        this.gl.uniform1f(this.skyboxShaderVars.uniformLocations.uTilt, this.skyboxTilt);
         
         // Setup overlay shader program
         this.overlayShaderProgram = this.createProgram(shaders.overlayVertex, shaders.overlayFragment);
@@ -200,38 +196,10 @@ class WebGLRenderer {
         });
     }
 
-    async loadSkybox() {
-        const faces = ['front', 'back', 'left', 'right', 'top', 'bottom'];
-        const cubeMapFaces = [
-            this.gl.TEXTURE_CUBE_MAP_POSITIVE_Z, // front
-            this.gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, // back
-            this.gl.TEXTURE_CUBE_MAP_NEGATIVE_X, // left
-            this.gl.TEXTURE_CUBE_MAP_POSITIVE_X, // right
-            this.gl.TEXTURE_CUBE_MAP_POSITIVE_Y, // top
-            this.gl.TEXTURE_CUBE_MAP_NEGATIVE_Y  // bottom
-        ];
 
-        this.skyboxTexture = this.gl.createTexture();
-        this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, this.skyboxTexture);
-
-        for (let i = 0; i < faces.length; i++) {
-            const image = new Image();
-            image.onload = () => {
-                this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, this.skyboxTexture);
-                this.gl.texImage2D(cubeMapFaces[i], 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, image);
-            };
-            image.src = `/TYNT/textures/skybox/${faces[i]}.png`;
-        }
-
-        this.gl.texParameteri(this.gl.TEXTURE_CUBE_MAP, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-        this.gl.texParameteri(this.gl.TEXTURE_CUBE_MAP, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-        this.gl.texParameteri(this.gl.TEXTURE_CUBE_MAP, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
-        this.gl.texParameteri(this.gl.TEXTURE_CUBE_MAP, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
-        this.gl.texParameteri(this.gl.TEXTURE_CUBE_MAP, this.gl.TEXTURE_WRAP_R, this.gl.CLAMP_TO_EDGE);
-    }
     
     async setupScene() {
-        this.camera = new Camera(this.FOV / 2, this.canvas.width / this.canvas.height, 0.1, 1000, 
+        this.camera = new Camera(this.FOV, this.canvas.width / this.canvas.height, 0.1, 1000, 
             new Vec3(0, 0, 10), new Vec3(0, 0, 0), new Vec3(0, 1, 0));
         
         // Load GLTF model
@@ -295,14 +263,15 @@ class WebGLRenderer {
         }
         
         this.scene.directionalLights.push(new DirectionalLight(new Vec3(-1, -0.45, -0.24), new Vec3(1.0, 0.9, 0.8).scale(3.0)));
-        this.scene.pointLights.push(new PointLight(new Vec3(2, 0, 1), new Vec3(1, 0.1, 0.1), 50));
-        this.scene.pointLights.push(new PointLight(new Vec3(2, 0, 1), new Vec3(0.0, 0.8, 0.8), 50));
+        // Removed two pointlights
+        // this.scene.pointLights.push(new PointLight(new Vec3(2, 0, 1), new Vec3(1, 0.1, 0.1), 50));
+        // this.scene.pointLights.push(new PointLight(new Vec3(2, 0, 1), new Vec3(0.0, 0.8, 0.8), 50));
         
         // Setup framebuffer
         this.setupFramebuffer();
         
         // Setup skybox
-        this.setupSkyboxMesh();
+        this.setupFullscreenQuad();
     }
 
     setupFramebuffer() {
@@ -332,9 +301,9 @@ class WebGLRenderer {
         return texture;
     }
 
-    setupSkyboxMesh() {
-        const vertices = [-1, -1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1, -1, -1, 1, 1, -1, 1, 1, 1, 1, -1, 1, 1];
-        const indices = [0,1,2,2,3,0,5,4,7,7,6,5,4,0,3,3,7,4,1,5,6,6,2,1,3,2,6,6,7,3,4,5,1,1,0,4];
+    setupFullscreenQuad() {
+        const vertices = [-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0];
+        const indices = [0, 1, 2, 2, 3, 0];
         
         this.skyboxMesh = new Mesh(vertices, indices);
         this.setupMeshBuffers(this.skyboxMesh, vertices, indices, null, null, null);
@@ -528,14 +497,15 @@ class WebGLRenderer {
         }
         this.gl.uniform1i(this.shaderVariables.uniformLocations.uDirLight.count, activeDirLights);
         
-        // Set point lights
-        for (let i = 0; i < activePointLights; i++) {
-            const light = this.scene.pointLights[i];
-            this.gl.uniform3f(this.shaderVariables.uniformLocations.uPointLight.positions[i], light.position.x, light.position.y, light.position.z);
-            this.gl.uniform3f(this.shaderVariables.uniformLocations.uPointLight.colors[i], light.color.x, light.color.y, light.color.z);
-            this.gl.uniform1f(this.shaderVariables.uniformLocations.uPointLight.ranges[i], light.range);
-        }
-        this.gl.uniform1i(this.shaderVariables.uniformLocations.uPointLight.count, activePointLights);
+        // Set point lights - DISABLED
+        // for (let i = 0; i < activePointLights; i++) {
+        //     const light = this.scene.pointLights[i];
+        //     this.gl.uniform3f(this.shaderVariables.uniformLocations.uPointLight.positions[i], light.position.x, light.position.y, light.position.z);
+        //     this.gl.uniform3f(this.shaderVariables.uniformLocations.uPointLight.colors[i], light.color.x, light.color.y, light.color.z);
+        //     this.gl.uniform1f(this.shaderVariables.uniformLocations.uPointLight.ranges[i], light.range);
+        // }
+        // this.gl.uniform1i(this.shaderVariables.uniformLocations.uPointLight.count, activePointLights);
+        this.gl.uniform1i(this.shaderVariables.uniformLocations.uPointLight.count, 0);
         
         // Don't bind any default textures - let objects bind their own
         // This prevents feedback loops with framebuffer attachments
@@ -548,9 +518,9 @@ class WebGLRenderer {
         }
     }
 
-    update() {
+    update(daytime) {
         const elapsed = (Date.now() - this.startTime) / 1000;
-        const radius = 3;
+        const radius = 30;
         
         // Animate wheels - rotate objects with "wheel" in their name
         for (let object of this.scene.objects) {
@@ -593,18 +563,30 @@ class WebGLRenderer {
             }
         }
         
-        // Rotate each point light in a circle
-        for (let i = 0; i < this.scene.pointLights.length; i++) {
-            const angle = elapsed + (i * (Math.PI * 2 / this.scene.pointLights.length));
-            const light = this.scene.pointLights[i];
-            light.position.x = Math.cos(angle) * radius;
-            light.position.z = Math.sin(angle) * radius;
-            light.position.y = 0;
+        // Set sun (first drectional light) direction to simulate day/night cycle
+        if (this.scene.directionalLights.length > 0) {
+            const sun = this.scene.directionalLights[0];
+            sun.direction.x = -Math.sin(daytime);
+            sun.direction.z = Math.cos(daytime) * -Math.cos(this.skyboxTilt);
+            sun.direction.y = Math.cos(daytime) * -Math.sin(this.skyboxTilt);
+            sun.color = new Vec3(1.0, 0.9, 0.8).scale(Math.max(0.2, Math.cos(daytime) * 3.0)); // Dim sun at night
         }
+
+        // Rotate each point light in a circle - DISABLED
+        // for (let i = 0; i < this.scene.pointLights.length; i++) {
+        //     const angle = elapsed + (i * (Math.PI * 2 / this.scene.pointLights.length));
+        //     const light = this.scene.pointLights[i];
+        //     light.position.x = Math.cos(angle) * radius;
+        //     light.position.z = Math.sin(angle) * radius;
+        //     light.position.y = 0;
+        // }
     }
     
     render() {
-        this.update();
+        const elapsed = (Date.now() - this.startTime) / 1000;
+        const daytime = elapsed / 10.0 + 1000; // Scale elapsed time to make day/night cycle visible
+
+        this.update(daytime);
         const viewMatrix = this.camera.getViewMatrix();
         const projMatrix = this.camera.getProjectionMatrix();
         
@@ -612,13 +594,11 @@ class WebGLRenderer {
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.sceneFramebuffer);
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
         
-        // Render skybox first (with depth equal to far plane)
+        // Render dynamic skybox first
         this.gl.useProgram(this.skyboxShaderProgram);
         this.gl.disable(this.gl.DEPTH_TEST);
-        this.gl.disable(this.gl.CULL_FACE);
-        this.drawSkybox(viewMatrix, projMatrix);
+        this.drawSkybox(daytime);
         this.gl.enable(this.gl.DEPTH_TEST);
-        this.gl.enable(this.gl.CULL_FACE);
         
         // Render scene objects
         this.gl.useProgram(this.shaderProgram);
@@ -641,13 +621,16 @@ class WebGLRenderer {
         requestAnimationFrame(() => this.render());
     }
 
-    drawSkybox(viewMatrix, projMatrix) {
-        this.gl.uniformMatrix4fv(this.skyboxShaderVars.uniformLocations.uView, false, viewMatrix);
-        this.gl.uniformMatrix4fv(this.skyboxShaderVars.uniformLocations.uProjection, false, projMatrix);
+    drawSkybox(daytime) {
         
-        this.gl.activeTexture(this.gl.TEXTURE0);
-        this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, this.skyboxTexture);
-        this.gl.uniform1i(this.skyboxShaderVars.uniformLocations.uSkybox, 0);
+        // Get camera view direction
+        const viewDir = this.camera.target.subtract(this.camera.position).normalize();
+        
+        // Set uniforms
+        this.gl.uniform2f(this.skyboxShaderVars.uniformLocations.resolution, this.canvas.width, this.canvas.height);
+        this.gl.uniform1f(this.skyboxShaderVars.uniformLocations.uFOV, Math.tan(this.FOV / 2));
+        this.gl.uniform1f(this.skyboxShaderVars.uniformLocations.uDaytime, daytime);
+        this.gl.uniform3f(this.skyboxShaderVars.uniformLocations.uViewDir, viewDir.x, viewDir.y, viewDir.z);
         
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.skyboxMesh.positionBuffer);
         this.gl.vertexAttribPointer(this.skyboxShaderVars.attribLocations.vertexPosition, 3, this.gl.FLOAT, false, 0, 0);
@@ -706,12 +689,12 @@ class WebGLRenderer {
             colors.push(light.color.x, light.color.y, light.color.z);
         }
         
-        // Add point lights
-        for (let light of this.scene.pointLights) {
-            const camSpacePos = this.transformToViewSpace(light.position, viewMatrix);
-            positions.push(camSpacePos.x, camSpacePos.y, camSpacePos.z);
-            colors.push(light.color.x, light.color.y, light.color.z);
-        }
+        // Add point lights - DISABLED
+        // for (let light of this.scene.pointLights) {
+        //     const camSpacePos = this.transformToViewSpace(light.position, viewMatrix);
+        //     positions.push(camSpacePos.x, camSpacePos.y, camSpacePos.z);
+        //     colors.push(light.color.x, light.color.y, light.color.z);
+        // }
         
         return { positions, colors };
     }
