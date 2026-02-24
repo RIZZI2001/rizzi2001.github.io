@@ -224,6 +224,7 @@ class GLTFLoader {
         }
 
         // Extract textures from images
+        console.log(`Extracting ${gltf.textures.length} textures...`);
         for (let i = 0; i < gltf.textures.length; i++) {
             const texture = gltf.textures[i];
             const image = gltf.images[texture.source];

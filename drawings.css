@@ -5,6 +5,20 @@ body {
     background-color: #202020;
 }
 
+.title {
+    color: white;
+    font-size: 3em;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.description {
+    color: white;
+    font-size: 1.2em;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
 .gallery-container {
     display: flex;
     justify-content: center;

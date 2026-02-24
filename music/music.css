@@ -1,0 +1,56 @@
+body {
+    font-family: Poppins, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #202020;
+}
+
+.title {
+    color: white;
+    font-size: 3em;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.description {
+    color: white;
+    font-size: 1.2em;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.music-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.music-item {
+    background-color: #2a2a2a;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s ease-in-out;
+}
+
+.music-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+}
+
+.music-date {
+    color: #b0b0b0;
+    font-size: 0.9em;
+    margin: 0 0 10px 0;
+    text-align: center;
+    font-weight: 600;
+}
+
+.music-player {
+    width: 100%;
+    background-color: #1a1a1a;
+    border-radius: 20px;
+}

@@ -97,6 +97,11 @@ h1 {
     border: #dd4db9 5px solid;
 }
 
+#music-button {
+    color: #ff7b3d;
+    border: #ff7b3d 5px solid;
+}
+
 .title {
     text-align: center;
     font-size: 24px;
