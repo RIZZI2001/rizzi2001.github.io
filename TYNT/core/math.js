@@ -199,7 +199,7 @@ class GameObject {
 
 class Camera {
     constructor(fov, aspect, near, far, position, target, up) {
-        this.fov = fov * Math.PI / 180; // Convert to radians
+        this.fov = fov;
         this.aspect = aspect;
         this.near = near;
         this.far = far;

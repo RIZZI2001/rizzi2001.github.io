@@ -97,7 +97,6 @@ class GLTFLoader {
             if (meshData) {
                 meshData.transform = nodeMatrix;
                 meshData.name = node.name || `Mesh_${node.mesh}`;
-                console.log(`Loaded: ${meshData.name}`);
                 meshes.push(meshData);
             }
         }
