@@ -137,6 +137,8 @@ class WebGLRenderer {
                 uSpecularStrength: this.gl.getUniformLocation(program, 'uSpecularStrength'),
                 uTexture: this.gl.getUniformLocation(program, 'uTexture'),
                 uNormalMap: this.gl.getUniformLocation(program, 'uNormalMap'),
+                uMERTexture: this.gl.getUniformLocation(program, 'uMERTexture'),
+                uHasMERTexture: this.gl.getUniformLocation(program, 'uHasMERTexture'),
                 uDirLight: { count: this.gl.getUniformLocation(program, 'uDirLightCount') },
                 uPointLight: { count: this.gl.getUniformLocation(program, 'uPointLightCount') }
             }
@@ -176,6 +178,15 @@ class WebGLRenderer {
         };
     }
 
+    async textureExists(url) {
+        try {
+            const response = await fetch(url, { method: 'HEAD' });
+            return response.ok;
+        } catch (error) {
+            return false;
+        }
+    }
+
     async loadTexture(url, name) {
         return new Promise((resolve) => {
             const image = new Image();
@@ -204,7 +215,9 @@ class WebGLRenderer {
         
         // Load GLTF model
         const loader = new GLTFLoader(this.gl);
-        const meshDataArray = await loader.load('/TYNT/models/racecar.gltf');
+        const modelPath = '/TYNT/models/racecar.gltf';
+        const modelName = modelPath.split('/').pop().split('.')[0]; // Extract "racecar" from path
+        const meshDataArray = await loader.load(modelPath);
         
         if (meshDataArray && meshDataArray.length > 0) {
             // Create a GameObject for each mesh
@@ -230,10 +243,27 @@ class WebGLRenderer {
                     modelObject.transformMatrix = meshData.transform;
                 }
                 
-                // Load and create GL textures from GLTF model
-                if (meshData.textures && meshData.textures.length > 0) {
-                    const textureData = meshData.textures[0];
-                    if (textureData.url) {
+                // Check if texture with model name exists in models/textures folder
+                const modelNamedTextureUrl = `/TYNT/models/textures/${modelName}.png`;
+                const modelMERTextureUrl = `/TYNT/models/textures/${modelName}_mer.png`;
+                const textureExistsPromise = this.textureExists(modelNamedTextureUrl);
+                const merTextureExistsPromise = this.textureExists(modelMERTextureUrl);
+                
+                // Load texture: prioritize model-named texture, fall back to GLTF texture
+                (async () => {
+                    const modelNamedTextureExists = await textureExistsPromise;
+                    const merTextureExists = await merTextureExistsPromise;
+                    let textureUrl = null;
+                    
+                    if (modelNamedTextureExists) {
+                        textureUrl = modelNamedTextureUrl;
+                        console.log(`Using model-named texture: ${textureUrl}`);
+                    } else if (meshData.textures && meshData.textures.length > 0) {
+                        textureUrl = meshData.textures[0].url;
+                        console.log(`Using GLTF embedded texture: ${textureUrl}`);
+                    }
+                    
+                    if (textureUrl) {
                         const textureImage = new Image();
                         textureImage.onload = () => {
                             try {
@@ -250,11 +280,35 @@ class WebGLRenderer {
                             }
                         };
                         textureImage.onerror = () => {
-                            console.error('Failed to load image:', textureData.url);
+                            console.error('Failed to load image:', textureUrl);
                         };
-                        textureImage.src = textureData.url;
+                        textureImage.src = textureUrl;
                     }
-                }
+                    
+                    // Load MER texture if it exists
+                    if (merTextureExists) {
+                        const merImage = new Image();
+                        merImage.onload = () => {
+                            try {
+                                const merTexture = this.gl.createTexture();
+                                this.gl.bindTexture(this.gl.TEXTURE_2D, merTexture);
+                                this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGB, this.gl.RGB, this.gl.UNSIGNED_BYTE, merImage);
+                                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT);
+                                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT);
+                                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
+                                this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
+                                modelObject.merTexture = merTexture;
+                                console.log(`Loaded MER texture: ${modelMERTextureUrl}`);
+                            } catch (e) {
+                                console.error('Failed to load MER texture:', e);
+                            }
+                        };
+                        merImage.onerror = () => {
+                            console.error('Failed to load MER image:', modelMERTextureUrl);
+                        };
+                        merImage.src = modelMERTextureUrl;
+                    }
+                })();
                 
                 this.scene.objects.push(modelObject);
             }
@@ -307,81 +361,6 @@ class WebGLRenderer {
         
         this.skyboxMesh = new Mesh(vertices, indices);
         this.setupMeshBuffers(this.skyboxMesh, vertices, indices, null, null, null);
-    }
-    
-    createCubeMesh() {
-        const vertices = [
-            // Front face
-            -1, -1,  1,
-             1, -1,  1,
-             1,  1,  1,
-            -1,  1,  1,
-            // Back face
-            -1, -1, -1,
-            -1,  1, -1,
-             1,  1, -1,
-             1, -1, -1,
-            // Top face
-            -1,  1, -1,
-            -1,  1,  1,
-             1,  1,  1,
-             1,  1, -1,
-            // Bottom face
-            -1, -1, -1,
-             1, -1, -1,
-             1, -1,  1,
-            -1, -1,  1,
-            // Right face
-             1, -1, -1,
-             1,  1, -1,
-             1,  1,  1,
-             1, -1,  1,
-            // Left face
-            -1, -1, -1,
-            -1, -1,  1,
-            -1,  1,  1,
-            -1,  1, -1,
-        ];
-        
-        const normals = [
-            0, 0, 1,  0, 0, 1,  0, 0, 1,  0, 0, 1,
-            0, 0, -1,  0, 0, -1,  0, 0, -1,  0, 0, -1,
-            0, 1, 0,  0, 1, 0,  0, 1, 0,  0, 1, 0,
-            0, -1, 0,  0, -1, 0,  0, -1, 0,  0, -1, 0,
-            1, 0, 0,  1, 0, 0,  1, 0, 0,  1, 0, 0,
-            -1, 0, 0,  -1, 0, 0,  -1, 0, 0,  -1, 0, 0,
-        ];
-        
-        const texCoords = [
-            0, 0,  1, 0,  1, 1,  0, 1,
-            1, 0,  1, 1,  0, 1,  0, 0,
-            0, 1,  0, 0,  1, 0,  1, 1,
-            0, 0,  1, 0,  1, 1,  0, 1,
-            1, 0,  1, 1,  0, 1,  0, 0,
-            0, 0,  1, 0,  1, 1,  0, 1,
-        ];
-        
-        const tangents = [
-            1, 0, 0,  1, 0, 0,  1, 0, 0,  1, 0, 0,
-            -1, 0, 0,  -1, 0, 0,  -1, 0, 0,  -1, 0, 0,
-            1, 0, 0,  1, 0, 0,  1, 0, 0,  1, 0, 0,
-            1, 0, 0,  1, 0, 0,  1, 0, 0,  1, 0, 0,
-            0, 0, -1,  0, 0, -1,  0, 0, -1,  0, 0, -1,
-            0, 0, 1,  0, 0, 1,  0, 0, 1,  0, 0, 1,
-        ];
-        
-        const indices = [
-            0,  1,  2,    0,  2,  3,    // front
-            4,  5,  6,    4,  6,  7,    // back
-            8,  9,  10,   8,  10, 11,   // top
-            12, 13, 14,   12, 14, 15,   // bottom
-            16, 17, 18,   16, 18, 19,   // right
-            20, 21, 22,   20, 22, 23    // left
-        ];
-        
-        const mesh = new Mesh(vertices, indices, normals);
-        this.setupMeshBuffers(mesh, vertices, indices, normals, texCoords, tangents);
-        return mesh;
     }
     
     setupMeshBuffers(mesh, vertices, indices, normals, texCoords, tangents) {
@@ -730,6 +709,16 @@ class WebGLRenderer {
             }
         }
         this.gl.uniform1i(this.shaderVariables.uniformLocations.uTexture, 0);
+        
+        // Bind MER texture if available
+        if (object.merTexture) {
+            this.gl.activeTexture(this.gl.TEXTURE1);
+            this.gl.bindTexture(this.gl.TEXTURE_2D, object.merTexture);
+            this.gl.uniform1i(this.shaderVariables.uniformLocations.uMERTexture, 1);
+            this.gl.uniform1i(this.shaderVariables.uniformLocations.uHasMERTexture, 1);
+        } else {
+            this.gl.uniform1i(this.shaderVariables.uniformLocations.uHasMERTexture, 0);
+        }
         
         // Bind position
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, mesh.positionBuffer);
