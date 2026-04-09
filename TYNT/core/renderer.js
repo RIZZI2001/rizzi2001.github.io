@@ -215,8 +215,8 @@ class WebGLRenderer {
         
         // Load GLTF model
         const loader = new GLTFLoader(this.gl);
-        const modelPath = '/TYNT/models/racecar.gltf';
-        const modelName = modelPath.split('/').pop().split('.')[0]; // Extract "racecar" from path
+        const modelPath = '/TYNT/models/supercar.gltf';
+        const modelName = modelPath.split('/').pop().split('.')[0];
         const meshDataArray = await loader.load(modelPath);
         
         if (meshDataArray && meshDataArray.length > 0) {

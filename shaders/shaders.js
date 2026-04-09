@@ -336,24 +336,27 @@ async function main() {
     });
 }
 
-// Load shaders from JSON, then start main
-/* fetch('test.glsl').then(res => res.text())
+//Toggle testMode
+const testMode = false;
+if (testMode) {
+    fetch('test.glsl').then(res => res.text())
+        .then(data => {
+            shaderSources = [
+            { name: 'Test Shader', date: 'none', code: data }
+            ];
+            main();
+        })
+        .catch(err => {
+            alert('Failed to load shaders: ' + err);
+        });
+} else {
+    fetch('shaderCollection.json')
+    .then(res => res.json())
     .then(data => {
-        shaderSources = [
-        { name: 'Test Shader', date: '2023-10-01', code: data }
-        ];
+        shaderSources = data.shaders;
         main();
     })
     .catch(err => {
         alert('Failed to load shaders: ' + err);
-    }); */
-
-fetch('shaderCollection.json')
-  .then(res => res.json())
-  .then(data => {
-    shaderSources = data.shaders;
-    main();
-  })
-  .catch(err => {
-    alert('Failed to load shaders: ' + err);
-  });
+    });
+}
