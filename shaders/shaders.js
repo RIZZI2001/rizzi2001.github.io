@@ -337,7 +337,7 @@ async function main() {
 }
 
 //Toggle testMode
-const testMode = false;
+const testMode = true;
 if (testMode) {
     fetch('test.glsl').then(res => res.text())
         .then(data => {
