@@ -336,8 +336,8 @@ async function main() {
     });
 }
 
-//Toggle testMode
-const testMode = true;
+//Toggle testMode. Testmode only available in localhost
+const testMode = true && window.location.hostname === 'localhost';
 if (testMode) {
     fetch('test.glsl').then(res => res.text())
         .then(data => {
