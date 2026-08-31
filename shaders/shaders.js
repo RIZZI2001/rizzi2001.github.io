@@ -64,10 +64,11 @@ let currentShader = 0;
 let currentShaderCode = '';
 let worldTextures = [null, null];
 let rizziTexture;
+let skullTexture;
 let treeTexture;
 let fontTexture;
 let touch = [0, 0];
-let program, posLoc, resLoc, timeLoc, powerLoc, batteryLoc, backbufferLoc, frameLoc, world1Loc, world2Loc, rizziLoc, treeLoc, fontLoc, touchLoc, dateLoc;
+let program, posLoc, resLoc, timeLoc, powerLoc, batteryLoc, backbufferLoc, frameLoc, world1Loc, world2Loc, rizziLoc, skullLoc, treeLoc, fontLoc, touchLoc, dateLoc;
 let gl, canvas;
 let shaderSources = [];
 let frameCount = 0;
@@ -133,6 +134,7 @@ function startShader() {
         world1Loc = gl.getUniformLocation(program, 'world1');
         world2Loc = gl.getUniformLocation(program, 'world2');
         rizziLoc = gl.getUniformLocation(program, 'rizzi');
+        skullLoc = gl.getUniformLocation(program, 'skull');
         treeLoc = gl.getUniformLocation(program, 'tree');
         fontLoc = gl.getUniformLocation(program, 'font');
         touchLoc = gl.getUniformLocation(program, 'touch');
@@ -185,6 +187,7 @@ async function main() {
     worldTextures[0] = loadTexture(gl, 'world1.jpg');
     worldTextures[1] = loadTexture(gl, 'world2.jpg');
     rizziTexture = loadTexture(gl, 'rizzi.png');
+    skullTexture = loadTexture(gl, 'skull.jpg');
     treeTexture = loadTexture(gl, 'tree.jpg');
     fontTexture = loadTexture(gl, 'font.png');
     
@@ -239,6 +242,11 @@ async function main() {
             gl.activeTexture(gl.TEXTURE3);
             gl.bindTexture(gl.TEXTURE_2D, rizziTexture);
             gl.uniform1i(rizziLoc, 3);
+        }
+        if (skullTexture) {
+            gl.activeTexture(gl.TEXTURE6);
+            gl.bindTexture(gl.TEXTURE_2D, skullTexture);
+            gl.uniform1i(skullLoc, 6);
         }
         if (treeTexture) {
             gl.activeTexture(gl.TEXTURE4);
