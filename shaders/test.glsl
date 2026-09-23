@@ -1,5 +1,6 @@
-// Green Storm
-// 2026-08-30
+// Rotating Halos
+// 2026-09-22
+
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
 #else
@@ -8,52 +9,72 @@ precision mediump float;
 
 uniform vec2 resolution;
 uniform float time;
+uniform vec2 touch;
 
 const float PI = 3.1415926;
-const float E = 2.7182818;
 
-float tanh(float x) {
-	return 1. - 2./(pow(E, 2. * x) + 1.);
+vec3 rotateVec(vec3 v, vec2 r) {
+	float cy = cos(r.x), sy = sin(r.x), cp = cos(r.y), sp = sin(r.y);
+  return v * mat3(cy, -sp * sy, cp * -sy, 0.0, cp, -sp,sy, sp * cy, cp * cy);
 }
 
-vec4 tanh(vec4 x) {
-	return vec4(tanh(x.x), tanh(x.y), tanh(x.z), tanh(x.w));
+vec2 normCoord(vec2 c) {
+	vec2 r = resolution; return (2.*c-r)/min(r.x, r.y);
 }
 
-vec4 getC(vec3 rd) {
-	float rayDistance = 0.0;
-  vec4 color = vec4(0.0);
-  float t = time * 0.1;
+vec3 p2(float v) {
+	//v *= 6.283185307179;
+	return 0.5 + 0.5 * vec3(cos(v - 1.7), cos(v - 3.), cos(v + 1.7));
+}
 
-  for (int outerStep = 0; outerStep < 40; outerStep++){
-    vec3 samplePoint = rd * rayDistance;
-    vec3 warpedPoint = samplePoint;
+vec2 rayMarch(vec3 ro, vec3 rd, bool sphere) {
+  float a = 0.0;
 
-    float radius = length(samplePoint + vec3(0., 0., 7.));
+  for(int i = 0; i < 50; i++) {
+    vec3 p = ro + rd * a;
 
-    for (float innerStep = 1.; innerStep <= 9.; innerStep++){
-      vec3 wave = sin(warpedPoint * innerStep - time);
-      warpedPoint += wave.yzx / innerStep;
+    float minD = 1000.;
+    // all rings
+    for(float ring = 1.; ring < 10.; ring ++) {
+      vec3 pr = rotateVec(p, (vec2(0., 1.3) + ring) * time / 10.);
+      float dt = length(vec2(length(pr.yz) - 1. - ring / 10., pr.x)) - .03;
+      if(dt < 0.01) return vec2(a, ring);
+      if(dt < minD) minD = dt;
     }
 
-    radius -= 4.0;
+    if(sphere) {
+      float ds = length(p) - 1.;
+      if(ds < 0.01) return vec2(a, 0.);
+      if(ds < minD) minD = ds;
+    }
+    a += minD;
 
-    vec3 rotatedWarp = warpedPoint.yzx;
-    vec3 modulation = sin(rotatedWarp / 3.0 + vec3(t));
-    vec3 fieldXYZ = sin(vec3(2.0 * radius - 10.0 * t) + warpedPoint * modulation) + vec3(0.9);
-    float fieldW = min(radius, -10.0 * radius) * 0.4;
-
-    float fieldStrength = length(vec4(fieldXYZ, fieldW)) * 0.1;
-
-    rayDistance += fieldStrength;
-
-    color += vec4(0.2 / fieldStrength , 9., 2., 1.) / fieldStrength;
+    if(a > 100.0) {return vec2(-1.);}
   }
-  return color;
 }
 
-void main(void) {
-	  vec3 rd = normalize(vec3((gl_FragCoord.xy - resolution * 0.5) / 200., -1.));
-    vec4 color = getC(rd);
-    gl_FragColor = tanh(color / 8000.0);
+const vec3 light = normalize(vec3(1., 5., -3.));
+
+void main(void){
+  vec2 uv = normCoord(gl_FragCoord.xy) * .5;
+
+  vec3 ro = vec3(0., 0., -5.);
+  vec3 rd = normalize(vec3(uv, 1.));
+
+  vec2 hit = rayMarch(ro, rd, true);
+
+  if(hit.x > 0.0) {
+    vec3 p = ro + rd * hit.x;
+    if(hit.y < .5) {
+      gl_FragColor += vec4(.4) * dot(p, light);
+      rd = reflect(rd, p);
+      ro = p * 1.;
+      hit = rayMarch(ro, rd, false);
+      if(hit.y > .5) gl_FragColor.rgb += p2(hit.y) * .3;
+    } else {
+    	gl_FragColor.rgb += p2(hit.y);
+    }
+  } else {
+  	gl_FragColor += .1 / length(uv);
+  }
 }

@@ -1,3 +1,19 @@
+const images = [
+    ['world1', 'jpg'],
+    ['world2', 'jpg'],
+    ['rizzi', 'png'],
+    ['tree', 'jpg'],
+    ['font', 'png'],
+    ['skull', 'jpg'],
+    ['fontd', 'png'],
+    ['leftS', 'jpg'],
+    ['topS', 'jpg'],
+    ['frontS', 'jpg'],
+    ['bottomS', 'jpg'],
+    ['rightS', 'jpg'],
+    ['backS', 'jpg'],
+];
+
 const editor = document.getElementById('editor');
 const textArea = document.getElementById('shader-code');
 
@@ -62,13 +78,10 @@ function createProgram(gl, vertSrc, fragSrc) {
 
 let currentShader = 0;
 let currentShaderCode = '';
-let worldTextures = [null, null];
-let rizziTexture;
-let skullTexture;
-let treeTexture;
-let fontTexture;
+let imageTextures = {};
 let touch = [0, 0];
-let program, posLoc, resLoc, timeLoc, powerLoc, batteryLoc, backbufferLoc, frameLoc, world1Loc, world2Loc, rizziLoc, skullLoc, treeLoc, fontLoc, touchLoc, dateLoc;
+let imageUniforms = {};
+let program, posLoc, resLoc, timeLoc, powerLoc, batteryLoc, backbufferLoc, frameLoc, touchLoc, dateLoc;
 let gl, canvas;
 let shaderSources = [];
 let frameCount = 0;
@@ -131,12 +144,10 @@ function startShader() {
         batteryLoc = gl.getUniformLocation(program, 'battery');
         backbufferLoc = gl.getUniformLocation(program, 'backbuffer');
         frameLoc = gl.getUniformLocation(program, 'frame');
-        world1Loc = gl.getUniformLocation(program, 'world1');
-        world2Loc = gl.getUniformLocation(program, 'world2');
-        rizziLoc = gl.getUniformLocation(program, 'rizzi');
-        skullLoc = gl.getUniformLocation(program, 'skull');
-        treeLoc = gl.getUniformLocation(program, 'tree');
-        fontLoc = gl.getUniformLocation(program, 'font');
+        imageUniforms = {};
+        images.forEach(([name]) => {
+            imageUniforms[name] = gl.getUniformLocation(program, name);
+        });
         touchLoc = gl.getUniformLocation(program, 'touch');
         dateLoc = gl.getUniformLocation(program, 'date');
 
@@ -184,13 +195,9 @@ async function main() {
         return;
     }
 
-    worldTextures[0] = loadTexture(gl, 'world1.jpg');
-    worldTextures[1] = loadTexture(gl, 'world2.jpg');
-    rizziTexture = loadTexture(gl, 'rizzi.png');
-    skullTexture = loadTexture(gl, 'skull.jpg');
-    treeTexture = loadTexture(gl, 'tree.jpg');
-    fontTexture = loadTexture(gl, 'font.png');
-    
+    images.forEach(([name, suffix]) => {
+        imageTextures[name] = loadTexture(gl, `${name}.${suffix}`);
+    });
 
     // Fullscreen quad
     const vertices = new Float32Array([
@@ -228,36 +235,15 @@ async function main() {
         if (powerLoc) gl.uniform1i(powerLoc, 1);
         if (batteryLoc) gl.uniform1f(batteryLoc, 1.0);
         if (frameLoc) gl.uniform1i(frameLoc, frameCount);
-        if (world1Loc) {
-            gl.activeTexture(gl.TEXTURE1);
-            gl.bindTexture(gl.TEXTURE_2D, worldTextures[0]);
-            gl.uniform1i(world1Loc, 1);
-        }
-        if (world2Loc) {
-            gl.activeTexture(gl.TEXTURE2);
-            gl.bindTexture(gl.TEXTURE_2D, worldTextures[1]);
-            gl.uniform1i(world2Loc, 2);
-        }
-        if (rizziTexture) {
-            gl.activeTexture(gl.TEXTURE3);
-            gl.bindTexture(gl.TEXTURE_2D, rizziTexture);
-            gl.uniform1i(rizziLoc, 3);
-        }
-        if (skullTexture) {
-            gl.activeTexture(gl.TEXTURE6);
-            gl.bindTexture(gl.TEXTURE_2D, skullTexture);
-            gl.uniform1i(skullLoc, 6);
-        }
-        if (treeTexture) {
-            gl.activeTexture(gl.TEXTURE4);
-            gl.bindTexture(gl.TEXTURE_2D, treeTexture);
-            gl.uniform1i(treeLoc, 4);
-        }
-        if (fontTexture) {
-            gl.activeTexture(gl.TEXTURE5);
-            gl.bindTexture(gl.TEXTURE_2D, fontTexture);
-            gl.uniform1i(fontLoc, 5);
-        }
+        images.forEach(([name], index) => {
+            const textureUnit = index + 1;
+            const uniformLocation = imageUniforms[name];
+            if (imageTextures[name] && uniformLocation !== null) {
+                gl.activeTexture(gl.TEXTURE0 + textureUnit);
+                gl.bindTexture(gl.TEXTURE_2D, imageTextures[name]);
+                gl.uniform1i(uniformLocation, textureUnit);
+            }
+        });
         if (touchLoc) {
             gl.uniform2f(touchLoc, touch[0], touch[1]);
         }
@@ -345,7 +331,7 @@ async function main() {
 }
 
 //Toggle testMode. Testmode only available in localhost
-const testMode = true && window.location.hostname === 'localhost';
+const testMode = false && window.location.hostname === 'localhost';
 if (testMode) {
     fetch('test.glsl').then(res => res.text())
         .then(data => {
@@ -362,6 +348,7 @@ if (testMode) {
     .then(res => res.json())
     .then(data => {
         shaderSources = data.shaders;
+        console.log(shaderSources.length + ' shaders loaded');
         main();
     })
     .catch(err => {
