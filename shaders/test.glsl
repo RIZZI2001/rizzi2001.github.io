@@ -85,7 +85,7 @@ vec3 nightDrive(vec3 rd) {
 		y += .4;
 	} else if(z > 20.) {
 		col = vec3(7., 4., 0.);
-		y += .4;
+		y += .2;
 	} else {
 	  col = vec3(0., 7., 2.);
 	}
@@ -113,9 +113,9 @@ vec3 nightDrive(vec3 rd) {
 }
 
 #define flowPercent .9
-#define runExp .15
-#define gridSize 8.
-#define tld 1.
+#define runExp .1
+#define gridSize 6.
+#define tld .9
 
 vec2 gPI(vec2 off) {
 	return vec2(
