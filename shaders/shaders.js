@@ -93,6 +93,7 @@ let program, posLoc, resLoc, timeLoc, powerLoc, batteryLoc, backbufferLoc, frame
 let gl, canvas;
 let shaderSources = [];
 let frameCount = 0;
+let shaderStartTime = 0;
 
 // Ping-pong framebuffers and textures
 let fbos = [], textures = [], texWidth = 0, texHeight = 0;
@@ -167,6 +168,7 @@ function startShader() {
         }
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         frameCount = 0;
+        shaderStartTime = performance.now();
         return true;
     } catch (e) {
         if (errorDiv) {
@@ -240,7 +242,7 @@ async function main() {
     function render(now) {
         gl.useProgram(program);
         gl.uniform2f(resLoc, canvas.width, canvas.height);
-        if (timeLoc) gl.uniform1f(timeLoc, now * 0.001);
+        if (timeLoc) gl.uniform1f(timeLoc, (now - shaderStartTime) * 0.001);
         if (powerLoc) gl.uniform1i(powerLoc, 1);
         if (batteryLoc) gl.uniform1f(batteryLoc, 1.0);
         if (frameLoc) gl.uniform1i(frameLoc, frameCount);
@@ -283,7 +285,7 @@ async function main() {
             gl.bindFramebuffer(gl.FRAMEBUFFER, null);
             gl.useProgram(program);
             gl.uniform2f(resLoc, canvas.width, canvas.height);
-            if (timeLoc) gl.uniform1f(timeLoc, now * 0.001);
+            if (timeLoc) gl.uniform1f(timeLoc, (now - shaderStartTime) * 0.001);
             if (powerLoc) gl.uniform1i(powerLoc, 1);
             if (batteryLoc) gl.uniform1f(batteryLoc, 1.0);
             if (frameLoc) gl.uniform1i(frameLoc, frameCount);
