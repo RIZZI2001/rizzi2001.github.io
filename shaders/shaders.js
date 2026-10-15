@@ -12,6 +12,13 @@ const images = [
     ['bottomS', 'jpg'],
     ['rightS', 'jpg'],
     ['backS', 'jpg'],
+    ['sky1', 'png'],
+    ['sky2', 'png'],
+    ['sky3', 'png'],
+    ['sky4', 'png'],
+    ['Saturn1', 'jpg'],
+    ['Saturn2', 'jpg'],
+    ['SaturnRings', 'jpg']
 ];
 
 const editor = document.getElementById('editor');
@@ -80,8 +87,9 @@ let currentShader = 0;
 let currentShaderCode = '';
 let imageTextures = {};
 let touch = [0, 0];
+let pointerCount = 0;
 let imageUniforms = {};
-let program, posLoc, resLoc, timeLoc, powerLoc, batteryLoc, backbufferLoc, frameLoc, touchLoc, dateLoc;
+let program, posLoc, resLoc, timeLoc, powerLoc, batteryLoc, backbufferLoc, frameLoc, touchLoc, pointerCountLoc, dateLoc;
 let gl, canvas;
 let shaderSources = [];
 let frameCount = 0;
@@ -149,6 +157,7 @@ function startShader() {
             imageUniforms[name] = gl.getUniformLocation(program, name);
         });
         touchLoc = gl.getUniformLocation(program, 'touch');
+        pointerCountLoc = gl.getUniformLocation(program, 'pointerCount');
         dateLoc = gl.getUniformLocation(program, 'date');
 
         for (let i = 0; i < 2; ++i) {
@@ -247,6 +256,9 @@ async function main() {
         if (touchLoc) {
             gl.uniform2f(touchLoc, touch[0], touch[1]);
         }
+        if (pointerCountLoc) {
+            gl.uniform1i(pointerCountLoc, pointerCount);
+        }
         if (dateLoc) {
             const d = new Date();
             gl.uniform4f(dateLoc, 
@@ -327,6 +339,12 @@ async function main() {
         const rect = canvas.getBoundingClientRect();
         touch[0] = (e.clientX - rect.left) * canvas.width / rect.width;
         touch[1] = canvas.height - (e.clientY - rect.top) * canvas.height / rect.height;
+    });
+    canvas.addEventListener('mousedown', function(e) {
+        pointerCount = 1;
+    });
+    canvas.addEventListener('mouseup', function(e) {
+        pointerCount = 0;
     });
 }
 
